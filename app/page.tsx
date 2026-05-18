@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import {Prism as SyntaxHighlighter} from 'react-syntax-highlighter';
 import {oneDark} from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -20,9 +20,20 @@ export default function Home() {
   // 用于保存当前请求 controller
   const controllerRef = useRef(null);
 
+  // 保存底部Dom
+  const bottomRef = useRef<HTMLDivElement>(null);
+
   // loading
   const [loading, setLoading] = useState(false);
 
+  // 滚动到底部
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }
+  // 每次message更新都会自动滚动到底部
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
   // 发送消息
   const handleSend = async () => {
     try {
@@ -198,6 +209,7 @@ export default function Home() {
               </div>
             </div>
           ))}
+          <div ref={bottomRef}></div>
       </div>
 
       {/* 输入区域 */}
