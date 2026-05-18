@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 export default function Home() {
   // 输入框
@@ -14,11 +14,21 @@ export default function Home() {
     },
   ]);
 
+  // 用于保存当前请求 controller
+  const controllerRef = useRef(null);
+
   // loading
   const [loading, setLoading] = useState(false);
 
   // 发送消息
   const handleSend = async () => {
+    try {
+      // 发消息时创建controller
+    const controller = new AbortController();
+
+    controllerRef.current = controller;
+
+    
     if (!input.trim()) return;
 
     setLoading(true);
@@ -55,6 +65,7 @@ export default function Home() {
       body: JSON.stringify({
         messages: newMessages,
       }),
+      signal: controller.signal, // 为fetch和controller建立关联；
     });
 
     // 读取 stream
@@ -88,10 +99,20 @@ export default function Home() {
         return cloned;
       });
     }
+    } catch(error) {
+        console.log(error)
+    } finally {
+      setLoading(false)
+    }
 
-    setLoading(false);
   };
 
+  // 停止当前回答
+  const handleStop = () => {
+    controllerRef.current?.abort();
+
+    setLoading(false);
+  }
   return (
     <div
       style={{
@@ -165,14 +186,16 @@ export default function Home() {
         />
 
         <button
-          onClick={handleSend}
-          disabled={loading}
+          onClick={!loading? handleSend : handleStop }
+          // disabled={loading}
           style={{
             width: 100,
+            cursor: 'pointer',
+            border: '1px solid pink'
           }}
         >
           {loading
-            ? "生成中..."
+            ? "停止生成"
             : "发送"}
         </button>
       </div>
