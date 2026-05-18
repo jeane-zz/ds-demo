@@ -1,0 +1,13 @@
+{
+  "behavior": {
+    "usePlanMode": false
+  },
+  "limits": {
+    "maxThinkingSteps": 0
+  },
+  "modelParams": {
+    "thinking": {
+      "type": "disabled"
+    }
+  }
+}

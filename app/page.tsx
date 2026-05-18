@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useRef } from "react";
+import ReactMarkdown from "react-markdown";
+import {Prism as SyntaxHighlighter} from 'react-syntax-highlighter';
+import {oneDark} from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 export default function Home() {
   // 输入框
@@ -159,7 +162,39 @@ export default function Home() {
                   marginTop: 8,
                 }}
               >
-                {msg.content}
+                <ReactMarkdown
+                  components={{
+
+                    // 接管代码块的渲染
+                    code({
+                      inline,
+                      className,
+                      children,
+                      ...props
+                    }) {
+                      const match = /language-(\w+)/.exec(className || '');
+                      
+                      return !inline && match ? (
+                        <SyntaxHighlighter
+                          style={oneDark}
+                          language={match[1]}
+                          PreTag="div"
+                          {...props}
+                        >
+                          {String(children).replace(/\n$/, '')}
+                        </SyntaxHighlighter>
+                      ) : (
+                        <code className={className} {...props}>
+                          {children}
+                        </code>
+                      )
+                    }
+
+
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
               </div>
             </div>
           ))}
