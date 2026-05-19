@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import MessageItem from "./components/MessageItem";
+import styles from "./page.module.css";
 
 export default function Home() {
   // 输入框
@@ -185,41 +186,16 @@ export default function Home() {
     ]);
   }
   return (
-    <div
-      style={{
-        width: 800,
-        margin: "40px auto",
-        fontFamily: "sans-serif",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-        <h1 style={{ margin: 0 }}>DeepSeek Chat</h1>
-        <button
-          onClick={handleClear}
-          style={{
-            marginLeft: "auto",
-            fontSize: 12,
-            padding: "4px 10px",
-            cursor: "pointer",
-            border: "1px solid #ccc",
-            borderRadius: 4,
-            background: "#f5f5f5",
-          }}
-        >
+    <div className={styles.container}>
+      <div className={styles.header}>
+        <h1 className={styles.title}>DeepSeek Chat</h1>
+        <button onClick={handleClear} className={styles.clearBtn}>
           清除历史
         </button>
       </div>
 
       {/* 聊天区域 */}
-      <div
-        style={{
-          border: "1px solid #ccc",
-          padding: 20,
-          height: 500,
-          overflowY: "auto",
-          marginBottom: 20,
-        }}
-      >
+      <div className={styles.chatArea}>
         {isMounted &&
           messages
           .filter(
@@ -240,38 +216,19 @@ export default function Home() {
       </div>
 
       {/* 输入区域 */}
-      <div
-        style={{
-          display: "flex",
-          gap: 10,
-        }}
-      >
+      <div className={styles.inputRow}>
         <input
-
           value={input}
-          onChange={(e) =>
-            setInput(e.target.value)
-          }
+          onChange={(e) => setInput(e.target.value)}
           placeholder="请输入..."
-          style={{
-            flex: 1,
-            height: 40,
-            padding: "0 10px",
-          }}
+          className={styles.inputField}
         />
 
         <button
-          onClick={!loading? handleSend : handleStop }
-          // disabled={loading}
-          style={{
-            width: 100,
-            cursor: 'pointer',
-            border: '1px solid pink'
-          }}
+          onClick={!loading ? handleSend : handleStop}
+          className={styles.sendBtn}
         >
-          {loading
-            ? "停止生成"
-            : "发送"}
+          {loading ? "停止生成" : "发送"}
         </button>
       </div>
     </div>
