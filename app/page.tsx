@@ -8,12 +8,44 @@ export default function Home() {
   const [input, setInput] = useState("我想学习一下React的设计思想，你能帮我解释一下吗？");
 
   // 聊天记录
-  const [messages, setMessages] = useState([
-    {
-      role: "system",
-      content: "你是一个资深 React 专家",
-    },
-  ]);
+  const [messages, setMessages] = useState<{ role: string; content: string }[]>(
+    []
+  );
+
+  // 是否已挂载（用于 hydration 后加载 localStorage）
+  const [isMounted, setIsMounted] = useState(false);
+
+  // 组件挂载后从 localStorage 恢复聊天记录
+  useEffect(() => {
+    const saved = localStorage.getItem("chat_messages");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setMessages([
+          {
+            role: "system",
+            content: "你是一个资深 React 专家",
+          },
+          ...parsed,
+        ]);
+      } catch {}
+    } else {
+      setMessages([
+        {
+          role: "system",
+          content: "你是一个资深 React 专家",
+        },
+      ]);
+    }
+    setIsMounted(true);
+  }, []);
+
+  // 持久化聊天记录（排除 system 消息），只在挂载后执行
+  useEffect(() => {
+    if (!isMounted) return;
+    const history = messages.filter((m) => m.role !== "system");
+    localStorage.setItem("chat_messages", JSON.stringify(history));
+  }, [messages, isMounted]);
 
   // 用于保存当前请求 controller
   const controllerRef = useRef(null);
@@ -141,6 +173,17 @@ export default function Home() {
 
     setLoading(false);
   }
+
+  // 清除聊天记录
+  const handleClear = () => {
+    localStorage.removeItem("chat_messages");
+    setMessages([
+      {
+        role: "system",
+        content: "你是一个资深 React 专家",
+      },
+    ]);
+  }
   return (
     <div
       style={{
@@ -149,7 +192,23 @@ export default function Home() {
         fontFamily: "sans-serif",
       }}
     >
-      <h1>DeepSeek Chat</h1>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <h1 style={{ margin: 0 }}>DeepSeek Chat</h1>
+        <button
+          onClick={handleClear}
+          style={{
+            marginLeft: "auto",
+            fontSize: 12,
+            padding: "4px 10px",
+            cursor: "pointer",
+            border: "1px solid #ccc",
+            borderRadius: 4,
+            background: "#f5f5f5",
+          }}
+        >
+          清除历史
+        </button>
+      </div>
 
       {/* 聊天区域 */}
       <div
@@ -161,7 +220,8 @@ export default function Home() {
           marginBottom: 20,
         }}
       >
-        {messages
+        {isMounted &&
+          messages
           .filter(
             (msg) =>
               msg.role !== "system"
