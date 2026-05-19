@@ -2,12 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import MessageItem from "./components/MessageItem";
+import InputArea from "./components/InputArea";
 import styles from "./page.module.css";
 
 export default function Home() {
-  // 输入框
-  const [input, setInput] = useState("我想学习一下React的设计思想，你能帮我解释一下吗？");
-
   // 聊天记录
   const [messages, setMessages] = useState<{ role: string; content: string }[]>(
     []
@@ -49,13 +47,10 @@ export default function Home() {
   }, [messages, isMounted]);
 
   // 用于保存当前请求 controller
-  const controllerRef = useRef(null);
+  const controllerRef = useRef<AbortController | null>(null);
 
   // 保存底部Dom
   const bottomRef = useRef<HTMLDivElement>(null);
-
-  // loading
-  const [loading, setLoading] = useState(false);
 
   // 记录正在 streaming 的消息索引（用于控制是否高亮）
   const [streamingIndex, setStreamingIndex] = useState<number | null>(null);
@@ -64,36 +59,24 @@ export default function Home() {
   // 核心思路：每次更新立即 auto 滚动，不依赖 useEffect，避免闪烁
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: "auto" });
-  }
+  };
 
   // streaming 结束后 smooth 滚动一次
   const scrollToBottomSmooth = () => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }
-  // 发送消息
-  const handleSend = async () => {
-    try {
-      // 发消息时创建controller
-    const controller = new AbortController();
+  };
 
+  // 发送消息
+  const handleSend = async (text: string) => {
+    const controller = new AbortController();
     controllerRef.current = controller;
 
-    
-    if (!input.trim()) return;
-
-    setLoading(true);
-
-    // 用户消息
     const userMessage = {
       role: "user",
-      content: input,
+      content: text,
     };
 
-    // 新消息列表
-    const newMessages = [
-      ...messages,
-      userMessage,
-    ];
+    const newMessages = [...messages, userMessage];
 
     // 先更新 UI
     setMessages([
@@ -107,73 +90,52 @@ export default function Home() {
     // 记录当前 assistant 消息的索引（过滤掉 system 后的位置）
     setStreamingIndex(newMessages.filter((m) => m.role !== "system").length);
 
-    setInput("");
-
-    // 请求后端
-    const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messages: newMessages,
-      }),
-      signal: controller.signal, // 为fetch和controller建立关联；
-    });
-
-    // 读取 stream
-    const reader = response.body.getReader();
-
-    const decoder = new TextDecoder();
-
-    let assistantText = "";
-
-    // 开始 streaming — 每收到 chunk 就即时滚动
-    while (true) {
-      const { done, value } =
-        await reader.read();
-
-      if (done) break;
-
-      // chunk 转字符串
-      const chunk =
-        decoder.decode(value);
-
-      assistantText += chunk;
-
-      // 实时更新最后一条 assistant，并在 DOM 更新后立即滚动
-      setMessages((prev) => {
-        const cloned = [...prev];
-
-        cloned[cloned.length - 1] = {
-          role: "assistant",
-          content: assistantText,
-        };
-
-        return cloned;
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: newMessages,
+        }),
+        signal: controller.signal,
       });
 
-      // 请求下一帧滚动，确保 DOM 已更新
-      requestAnimationFrame(scrollToBottom);
-    }
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let assistantText = "";
 
-    // streaming 结束后 highligh
-    scrollToBottomSmooth();
-    setStreamingIndex(null);
-    } catch(error) {
-        console.log(error)
-    } finally {
-      setLoading(false)
-    }
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
+        assistantText += decoder.decode(value);
+
+        setMessages((prev) => {
+          const cloned = [...prev];
+          cloned[cloned.length - 1] = {
+            role: "assistant",
+            content: assistantText,
+          };
+          return cloned;
+        });
+
+        requestAnimationFrame(scrollToBottom);
+      }
+
+      scrollToBottomSmooth();
+      setStreamingIndex(null);
+    } catch (error) {
+      console.error("Send message error:", error);
+    }
   };
 
   // 停止当前回答
   const handleStop = () => {
     controllerRef.current?.abort();
-
-    setLoading(false);
-  }
+    setStreamingIndex(null);
+  };
 
   // 清除聊天记录
   const handleClear = () => {
@@ -216,21 +178,7 @@ export default function Home() {
       </div>
 
       {/* 输入区域 */}
-      <div className={styles.inputRow}>
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="请输入..."
-          className={styles.inputField}
-        />
-
-        <button
-          onClick={!loading ? handleSend : handleStop}
-          className={styles.sendBtn}
-        >
-          {loading ? "停止生成" : "发送"}
-        </button>
-      </div>
+      <InputArea onSend={handleSend} onStop={handleStop} />
     </div>
   );
 }
