@@ -1,13 +1,11 @@
 'use client'
 
 import { useState, useRef, useEffect } from "react";
-import ReactMarkdown from "react-markdown";
-import {Prism as SyntaxHighlighter} from 'react-syntax-highlighter';
-import {oneDark} from 'react-syntax-highlighter/dist/esm/styles/prism';
+import MessageItem from "./components/MessageItem";
 
 export default function Home() {
   // 输入框
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState("我想学习一下React的设计思想，你能帮我解释一下吗？");
 
   // 聊天记录
   const [messages, setMessages] = useState([
@@ -26,14 +24,19 @@ export default function Home() {
   // loading
   const [loading, setLoading] = useState(false);
 
+  // 记录正在 streaming 的消息索引（用于控制是否高亮）
+  const [streamingIndex, setStreamingIndex] = useState<number | null>(null);
+
   // 滚动到底部
+  // 核心思路：每次更新立即 auto 滚动，不依赖 useEffect，避免闪烁
   const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: "auto" });
+  }
+
+  // streaming 结束后 smooth 滚动一次
+  const scrollToBottomSmooth = () => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }
-  // 每次message更新都会自动滚动到底部
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
   // 发送消息
   const handleSend = async () => {
     try {
@@ -68,6 +71,9 @@ export default function Home() {
       },
     ]);
 
+    // 记录当前 assistant 消息的索引（过滤掉 system 后的位置）
+    setStreamingIndex(newMessages.filter((m) => m.role !== "system").length);
+
     setInput("");
 
     // 请求后端
@@ -89,6 +95,7 @@ export default function Home() {
 
     let assistantText = "";
 
+    // 开始 streaming — 每收到 chunk 就即时滚动
     while (true) {
       const { done, value } =
         await reader.read();
@@ -101,7 +108,7 @@ export default function Home() {
 
       assistantText += chunk;
 
-      // 实时更新最后一条 assistant
+      // 实时更新最后一条 assistant，并在 DOM 更新后立即滚动
       setMessages((prev) => {
         const cloned = [...prev];
 
@@ -112,7 +119,14 @@ export default function Home() {
 
         return cloned;
       });
+
+      // 请求下一帧滚动，确保 DOM 已更新
+      requestAnimationFrame(scrollToBottom);
     }
+
+    // streaming 结束后 highligh
+    scrollToBottomSmooth();
+    setStreamingIndex(null);
     } catch(error) {
         console.log(error)
     } finally {
@@ -153,61 +167,14 @@ export default function Home() {
               msg.role !== "system"
           )
           .map((msg, index) => (
-            <div
+            <MessageItem
               key={index}
-              style={{
-                marginBottom: 20,
-              }}
-            >
-              <b>
-                {msg.role === "user"
-                  ? "你"
-                  : "AI"}
-                :
-              </b>
-
-              <div
-                style={{
-                  whiteSpace:
-                    "pre-wrap",
-                  marginTop: 8,
-                }}
-              >
-                <ReactMarkdown
-                  components={{
-
-                    // 接管代码块的渲染
-                    code({
-                      inline,
-                      className,
-                      children,
-                      ...props
-                    }) {
-                      const match = /language-(\w+)/.exec(className || '');
-                      
-                      return !inline && match ? (
-                        <SyntaxHighlighter
-                          style={oneDark}
-                          language={match[1]}
-                          PreTag="div"
-                          {...props}
-                        >
-                          {String(children).replace(/\n$/, '')}
-                        </SyntaxHighlighter>
-                      ) : (
-                        <code className={className} {...props}>
-                          {children}
-                        </code>
-                      )
-                    }
-
-
-                  }}
-                >
-                  {msg.content}
-                </ReactMarkdown>
-              </div>
-            </div>
+              role={msg.role as "user" | "assistant"}
+              content={msg.content}
+              highlighted={
+                streamingIndex === null || index !== streamingIndex
+              }
+            />
           ))}
           <div ref={bottomRef}></div>
       </div>
@@ -220,6 +187,7 @@ export default function Home() {
         }}
       >
         <input
+
           value={input}
           onChange={(e) =>
             setInput(e.target.value)
