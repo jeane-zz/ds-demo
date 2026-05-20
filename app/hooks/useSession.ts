@@ -77,11 +77,32 @@ export function useSession() {
     setIsMounted(true);
   }, []);
 
-  // 持久化所有会话
+  // 用 ref 跟踪最新 sessions，防抖写入 localStorage
+  const sessionsRef = useRef(sessions);
+  sessionsRef.current = sessions;
+
+  // 持久化所有会话（防抖 1s，stream 过程中不频繁写入）
   useEffect(() => {
     if (!isMounted) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionsRef.current));
+      } catch {
+        console.warn("localStorage 已满，部分历史可能无法保存");
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
   }, [sessions, isMounted]);
+
+  // 组件卸载或切换页面时立即保存一次
+  useEffect(() => {
+    if (!isMounted) return;
+    return () => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionsRef.current));
+      } catch {}
+    };
+  }, [isMounted]);
 
   // 更新当前会话的 messages
   const updateMessages = useCallback(
