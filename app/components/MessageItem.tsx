@@ -15,6 +15,7 @@ const MessageItem = memo(function MessageItem({
   content,
   highlighted = true,
 }: MessageItemProps) {
+  console.log(role, content,);
   return (
     <div className={styles.item}>
       <b>{role === "user" ? "你" : "AI"}:</b>
@@ -23,6 +24,10 @@ const MessageItem = memo(function MessageItem({
         <ReactMarkdown
           components={{
             code({ inline, className, children, ...props }) {
+             
+              // 提取语言标识
+              // 正则表达式匹配 language- 开头的内容 
+              // Markdown里面 ```js 的className 标记为 language-js
               const match = /language-(\w+)/.exec(className || "");
 
               if (!inline && match) {

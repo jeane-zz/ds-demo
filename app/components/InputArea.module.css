@@ -7,10 +7,17 @@
   flex: 1;
   height: 40px;
   padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-input);
+  color: var(--text-primary);
 }
 
 .sendBtn {
   width: 100px;
   cursor: pointer;
-  border: 1px solid pink;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }

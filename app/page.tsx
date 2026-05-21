@@ -2,6 +2,7 @@
 
 import MessageItem from "./components/MessageItem";
 import InputArea from "./components/InputArea";
+import ThemeToggle from "./components/ThemeToggle";
 import { useSession } from "./hooks/useSession";
 import styles from "./page.module.css";
 
@@ -24,9 +25,12 @@ export default function Home() {
     <div className={styles.layout}>
       {/* 侧边栏 */}
       <aside className={styles.sidebar}>
-        <button onClick={createSession} className={styles.newChatBtn}>
-          + 新建会话
-        </button>
+        <div className={styles.toolbar}>
+          <button onClick={createSession} className={styles.newChatBtn}>
+            + 新建会话
+          </button>
+          <ThemeToggle />
+        </div>
         <div className={styles.sessionList}>
           {sessions.map((s) => (
             <div

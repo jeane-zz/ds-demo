@@ -7,28 +7,34 @@
 /* 侧边栏 */
 .sidebar {
   width: 260px;
-  background: #f7f7f8;
-  border-right: 1px solid #e5e5e5;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
   display: flex;
   flex-direction: column;
   padding: 12px;
   flex-shrink: 0;
+  gap: 8px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
 }
 
 .newChatBtn {
-  width: 100%;
-  padding: 10px 0;
-  margin-bottom: 12px;
+  flex: 1;
+  height: 40px;
   cursor: pointer;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: #fff;
+  background: var(--bg-input);
   font-size: 14px;
-  text-align: center;
+  color: var(--text-primary);
+  transition: background-color 0.2s;
 }
 
 .newChatBtn:hover {
-  background: #efefef;
+  background: var(--bg-hover);
 }
 
 .sessionList {
@@ -46,14 +52,15 @@
   border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
+  color: var(--text-primary);
 }
 
 .sessionItem:hover {
-  background: #e5e5e5;
+  background: var(--bg-hover);
 }
 
 .sessionItemActive {
-  background: #dcdcdc;
+  background: var(--bg-active);
   font-weight: 500;
 }
 
@@ -69,13 +76,13 @@
   border: none;
   cursor: pointer;
   font-size: 12px;
-  color: #999;
+  color: var(--text-muted);
   padding: 0 0 0 6px;
   line-height: 1;
 }
 
 .deleteBtn:hover {
-  color: #ff4444;
+  color: var(--danger);
 }
 
 /* 主区域 */
@@ -91,7 +98,7 @@
 
 .chatArea {
   flex: 1;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color);
   padding: 20px;
   overflow-y: auto;
   margin-bottom: 20px;

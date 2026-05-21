@@ -1,0 +1,20 @@
+.toggleBtn {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  flex-shrink: 0;
+  transition: background-color 0.2s;
+}
+
+.toggleBtn:hover {
+  background: var(--bg-hover);
+}
