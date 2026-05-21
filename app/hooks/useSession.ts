@@ -15,6 +15,7 @@ export interface Session {
 
 const STORAGE_KEY = "chat_sessions";
 const SYSTEM_PROMPT = "你是一个资深 React 专家";
+const MAX_CONTEXT_PAIRS = 15; // 保留最近 15 轮（用户+助手）
 
 /** 生成短 id */
 function uid(): string {
@@ -128,6 +129,16 @@ export function useSession() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // 对发送给 API 的 messages 做 context 截断
+  // 保留 system prompt + 最近 MAX_CONTEXT_PAIRS 轮对话
+  const trimContext = (msgs: Message[]): Message[] => {
+    const system = msgs.filter((m) => m.role === "system");
+    const history = msgs.filter((m) => m.role !== "system");
+    // 取最近 MAX_CONTEXT_PAIRS * 2 条（user + assistant 成对）
+    const recent = history.slice(-MAX_CONTEXT_PAIRS * 2);
+    return [...system, ...recent];
+  };
+
   // 发送消息
   const send = async (text: string) => {
     const controller = new AbortController();
@@ -150,10 +161,13 @@ export function useSession() {
     setStreamingIndex(0);
 
     try {
+      // 发送时截断 context（UI 中保留完整记录）
+      const trimmedMessages = trimContext([...messages, userMessage]);
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [...messages, userMessage] }),
+        body: JSON.stringify({ messages: trimmedMessages }),
         signal: controller.signal,
       });
 
