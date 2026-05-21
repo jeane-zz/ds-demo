@@ -1,6 +1,7 @@
 import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import CodeBlock from "./CodeBlock";
+import styles from "./MessageItem.module.css";
 
 interface MessageItemProps {
   role: "user" | "assistant";
@@ -15,15 +16,10 @@ const MessageItem = memo(function MessageItem({
   highlighted = true,
 }: MessageItemProps) {
   return (
-    <div style={{ marginBottom: 20 }}>
+    <div className={styles.item}>
       <b>{role === "user" ? "你" : "AI"}:</b>
 
-      <div
-        style={{
-          whiteSpace: "pre-wrap",
-          marginTop: 8,
-        }}
-      >
+      <div className={styles.content}>
         <ReactMarkdown
           components={{
             code({ inline, className, children, ...props }) {

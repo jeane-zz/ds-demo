@@ -3,6 +3,7 @@
 import { memo, useState, useCallback } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import styles from "./CodeBlock.module.css";
 
 interface CodeBlockProps {
   language: string;
@@ -26,32 +27,15 @@ const CodeBlock = memo(function CodeBlock({
   }, [code]);
 
   return (
-    <div style={{ position: "relative", margin: "8px 0" }}>
+    <div className={styles.wrapper}>
       {/* 顶栏：语言标签 + 复制按钮 */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          background: "#3a3f4b",
-          color: "#abb2bf",
-          fontSize: 12,
-          padding: "4px 12px",
-          borderTopLeftRadius: 6,
-          borderTopRightRadius: 6,
-        }}
-      >
+      <div className={styles.header}>
         <span>{language}</span>
         <button
           onClick={handleCopy}
-          style={{
-            background: "none",
-            border: "none",
-            color: copied ? "#98c379" : "#abb2bf",
-            cursor: "pointer",
-            fontSize: 12,
-            padding: "2px 6px",
-          }}
+          className={`${styles.copyBtn} ${
+            copied ? styles.copyBtnCopied : styles.copyBtnIdle
+          }`}
         >
           {copied ? "✓ 已复制" : "📋 复制"}
         </button>
@@ -63,23 +47,16 @@ const CodeBlock = memo(function CodeBlock({
           style={oneDark}
           language={language}
           PreTag="div"
-          customStyle={{ margin: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
+          customStyle={{
+            margin: 0,
+            borderTopLeftRadius: 0,
+            borderTopRightRadius: 0,
+          }}
         >
           {code.replace(/\n$/, "")}
         </SyntaxHighlighter>
       ) : (
-        <pre
-          style={{
-            background: "#282c34",
-            color: "#abb2bf",
-            padding: "16px",
-            margin: 0,
-            overflowX: "auto",
-            fontSize: 14,
-            borderBottomLeftRadius: 6,
-            borderBottomRightRadius: 6,
-          }}
-        >
+        <pre className={styles.pre}>
           <code>{code}</code>
         </pre>
       )}
