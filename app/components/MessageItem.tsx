@@ -1,7 +1,6 @@
 import { memo } from "react";
 import ReactMarkdown from "react-markdown";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import CodeBlock from "./CodeBlock";
 
 interface MessageItemProps {
   role: "user" | "assistant";
@@ -30,17 +29,13 @@ const MessageItem = memo(function MessageItem({
             code({ inline, className, children, ...props }) {
               const match = /language-(\w+)/.exec(className || "");
 
-              // highlighted 为 false 时仅用普通 code 标签，不做高亮
-              if (!inline && match && highlighted) {
+              if (!inline && match) {
                 return (
-                  <SyntaxHighlighter
-                    style={oneDark}
+                  <CodeBlock
                     language={match[1]}
-                    PreTag="div"
-                    {...props}
-                  >
-                    {String(children).replace(/\n$/, "")}
-                  </SyntaxHighlighter>
+                    code={String(children).replace(/\n$/, "")}
+                    highlighted={highlighted}
+                  />
                 );
               }
 
