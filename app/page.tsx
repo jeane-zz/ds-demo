@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useRef, useEffect } from "react";
 import MessageItem from "./components/MessageItem";
 import InputArea from "./components/InputArea";
 import ThemeToggle from "./components/ThemeToggle";
@@ -18,6 +19,7 @@ export default function Home() {
     stop,
     createSession,
     switchSession,
+    renameSession,
     deleteSession,
   } = useSession();
 
@@ -33,24 +35,14 @@ export default function Home() {
         </div>
         <div className={styles.sessionList}>
           {sessions.map((s) => (
-            <div
+            <SessionItem
               key={s.id}
-              className={`${styles.sessionItem} ${
-                s.id === activeId ? styles.sessionItemActive : ""
-              }`}
-              onClick={() => switchSession(s.id)}
-            >
-              <span className={styles.sessionTitle}>{s.title}</span>
-              <button
-                className={styles.deleteBtn}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteSession(s.id);
-                }}
-              >
-                ✕
-              </button>
-            </div>
+              session={s}
+              isActive={s.id === activeId}
+              onSelect={() => switchSession(s.id)}
+              onRename={(title) => renameSession(s.id, title)}
+              onDelete={() => deleteSession(s.id)}
+            />
           ))}
         </div>
       </aside>
@@ -76,6 +68,86 @@ export default function Home() {
 
       <InputArea onSend={send} onStop={stop} />
       </main>
+    </div>
+  );
+}
+
+function SessionItem({
+  session,
+  isActive,
+  onSelect,
+  onRename,
+  onDelete,
+}: {
+  session: { id: string; title: string };
+  isActive: boolean;
+  onSelect: () => void;
+  onRename: (title: string) => void;
+  onDelete: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(session.title);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [editing]);
+
+  const handleDoubleClick = () => {
+    setDraft(session.title);
+    setEditing(true);
+  };
+
+  const handleSubmit = () => {
+    const trimmed = draft.trim();
+    if (trimmed) {
+      onRename(trimmed);
+    }
+    setEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleSubmit();
+    } else if (e.key === "Escape") {
+      setEditing(false);
+    }
+  };
+
+  return (
+    <div
+      className={`${styles.sessionItem} ${
+        isActive ? styles.sessionItemActive : ""
+      }`}
+      onClick={onSelect}
+    >
+      {editing ? (
+        <input
+          ref={inputRef}
+          className={styles.renameInput}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={handleSubmit}
+          onKeyDown={handleKeyDown}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <span className={styles.sessionTitle} onDoubleClick={handleDoubleClick}>
+          {session.title}
+        </span>
+      )}
+      <button
+        className={styles.deleteBtn}
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+      >
+        ✕
+      </button>
     </div>
   );
 }

@@ -223,6 +223,13 @@ export function useSession() {
     setStreamingIndex(null);
   };
 
+  // 重命名会话
+  const renameSession = (id: string, title: string) => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, title } : s))
+    );
+  };
+
   // 删除会话
   const deleteSession = (id: string) => {
     setSessions((prev) => {
@@ -255,6 +262,8 @@ export function useSession() {
     clear: deleteSession,
     createSession,
     switchSession,
+    renameSession,
+    renameSession,
     deleteSession,
   };
 }

@@ -85,6 +85,17 @@
   color: var(--danger);
 }
 
+.renameInput {
+  flex: 1;
+  font-size: 13px;
+  padding: 2px 4px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  outline: none;
+}
+
 /* 主区域 */
 .main {
   flex: 1;
