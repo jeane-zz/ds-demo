@@ -23,6 +23,12 @@ export default function Home() {
     deleteSession,
   } = useSession();
 
+  const [search, setSearch] = useState("");
+
+  const filteredSessions = sessions.filter((s) =>
+    s.title.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <div className={styles.layout}>
       {/* 侧边栏 */}
@@ -33,8 +39,14 @@ export default function Home() {
           </button>
           <ThemeToggle />
         </div>
+        <input
+          className={styles.searchInput}
+          placeholder="搜索会话..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
         <div className={styles.sessionList}>
-          {sessions.map((s) => (
+          {filteredSessions.map((s) => (
             <SessionItem
               key={s.id}
               session={s}
