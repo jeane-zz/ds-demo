@@ -11,6 +11,7 @@ export interface Session {
   id: string;
   title: string;
   pinned?: boolean;
+  updatedAt: number;
   messages: Message[];
 }
 
@@ -29,6 +30,15 @@ function extractTitle(messages: Message[]): string {
   if (!firstUser) return "新会话";
   const title = firstUser.content.replace(/[\n\r]/g, " ").trim();
   return title.length > 20 ? title.slice(0, 20) + "…" : title;
+}
+
+/** 排序：置顶的排前面，同优先级按 updatedAt 降序（最新的在最前） */
+function sortSessions(list: Session[]): Session[] {
+  return list.sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+    return b.updatedAt - a.updatedAt;
+  });
 }
 
 export function useSession() {
@@ -61,7 +71,13 @@ export function useSession() {
       try {
         const parsed: Session[] = JSON.parse(saved);
         if (parsed.length > 0) {
-          setSessions(parsed);
+          // 对旧数据兼容：没有 updatedAt 的用当前时间
+          const list = parsed.map((s) => ({
+            ...s,
+            pinned: !!s.pinned,
+            updatedAt: s.updatedAt ?? Date.now(),
+          }));
+          setSessions(sortSessions(list));
           setActiveId(parsed[0].id);
           setIsMounted(true);
           return;
@@ -72,6 +88,8 @@ export function useSession() {
     const defaultSession: Session = {
       id: uid(),
       title: "新会话",
+      pinned: false,
+      updatedAt: Date.now(),
       messages: [{ role: "system", content: SYSTEM_PROMPT }],
     };
     setSessions([defaultSession]);
@@ -150,10 +168,14 @@ export function useSession() {
     // 先更新 messages 和标题
     updateMessages((prev) => {
       const next = [...prev, userMessage, { role: "assistant", content: "" }];
-      // 同步更新标题
+      // 同步更新标题和时间，并重新排序让活跃会话上浮
       setSessions((sessions) =>
-        sessions.map((s) =>
-          s.id === activeId ? { ...s, title: extractTitle(next) } : s
+        sortSessions(
+          sessions.map((s) =>
+            s.id === activeId
+              ? { ...s, title: extractTitle(next), updatedAt: Date.now() }
+              : s
+          )
         )
       );
       return next;
@@ -212,9 +234,11 @@ export function useSession() {
     const newSession: Session = {
       id: uid(),
       title: "新会话",
+      pinned: false,
+      updatedAt: Date.now(),
       messages: [{ role: "system", content: SYSTEM_PROMPT }],
     };
-    setSessions((prev) => [newSession, ...prev]);
+    setSessions((prev) => sortSessions([newSession, ...prev]));
     setActiveId(newSession.id);
   };
 
@@ -239,6 +263,8 @@ export function useSession() {
         const defaultSession: Session = {
           id: uid(),
           title: "新会话",
+          pinned: false,
+          updatedAt: Date.now(),
           messages: [{ role: "system", content: SYSTEM_PROMPT }],
         };
         setActiveId(defaultSession.id);
@@ -257,12 +283,7 @@ export function useSession() {
       const list = prev.map((s) =>
         s.id === id ? { ...s, pinned: !s.pinned } : s
       );
-      // 排序：置顶的排前面，同优先级保持原顺序
-      return list.sort((a, b) => {
-        if (a.pinned && !b.pinned) return -1;
-        if (!a.pinned && b.pinned) return 1;
-        return 0;
-      });
+      return sortSessions(list);
     });
   };
 
