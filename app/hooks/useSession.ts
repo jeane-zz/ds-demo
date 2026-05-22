@@ -10,6 +10,7 @@ export interface Message {
 export interface Session {
   id: string;
   title: string;
+  pinned?: boolean;
   messages: Message[];
 }
 
@@ -250,6 +251,21 @@ export function useSession() {
     });
   };
 
+  // 置顶/取消置顶会话
+  const togglePin = (id: string) => {
+    setSessions((prev) => {
+      const list = prev.map((s) =>
+        s.id === id ? { ...s, pinned: !s.pinned } : s
+      );
+      // 排序：置顶的排前面，同优先级保持原顺序
+      return list.sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+        return 0;
+      });
+    });
+  };
+
   return {
     sessions,
     activeId,
@@ -263,7 +279,7 @@ export function useSession() {
     createSession,
     switchSession,
     renameSession,
-    renameSession,
     deleteSession,
+    togglePin,
   };
 }

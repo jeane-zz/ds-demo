@@ -21,6 +21,7 @@ export default function Home() {
     switchSession,
     renameSession,
     deleteSession,
+    togglePin,
   } = useSession();
 
   const [search, setSearch] = useState("");
@@ -54,6 +55,7 @@ export default function Home() {
               onSelect={() => switchSession(s.id)}
               onRename={(title) => renameSession(s.id, title)}
               onDelete={() => deleteSession(s.id)}
+              onTogglePin={() => togglePin(s.id)}
             />
           ))}
         </div>
@@ -90,12 +92,14 @@ function SessionItem({
   onSelect,
   onRename,
   onDelete,
+  onTogglePin,
 }: {
-  session: { id: string; title: string };
+  session: { id: string; title: string; pinned?: boolean };
   isActive: boolean;
   onSelect: () => void;
   onRename: (title: string) => void;
   onDelete: () => void;
+  onTogglePin: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(session.title);
@@ -136,6 +140,15 @@ function SessionItem({
       }`}
       onClick={onSelect}
     >
+      <button
+        className={`${styles.pinBtn} ${session.pinned ? styles.pinBtnActive : ""}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onTogglePin();
+        }}
+      >
+        📌
+      </button>
       {editing ? (
         <input
           ref={inputRef}
