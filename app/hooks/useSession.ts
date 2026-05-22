@@ -12,12 +12,14 @@ export interface Session {
   title: string;
   pinned?: boolean;
   updatedAt: number;
+  titleGenerated?: boolean;
   messages: Message[];
 }
 
 const STORAGE_KEY = "chat_sessions";
 const SYSTEM_PROMPT = "你是一个资深 React 专家";
 const MAX_CONTEXT_PAIRS = 15; // 保留最近 15 轮（用户+助手）
+const DEFAULT_TITLE = "新会话";
 
 /** 生成短 id */
 function uid(): string {
@@ -27,7 +29,7 @@ function uid(): string {
 /** 从 messages 中提取标题（取第一条用户消息的前 20 字） */
 function extractTitle(messages: Message[]): string {
   const firstUser = messages.find((m) => m.role === "user");
-  if (!firstUser) return "新会话";
+  if (!firstUser) return DEFAULT_TITLE;
   const title = firstUser.content.replace(/[\n\r]/g, " ").trim();
   return title.length > 20 ? title.slice(0, 20) + "…" : title;
 }
@@ -87,7 +89,7 @@ export function useSession() {
     // 无数据时创建一个默认会话
     const defaultSession: Session = {
       id: uid(),
-      title: "新会话",
+      title: DEFAULT_TITLE,
       pinned: false,
       updatedAt: Date.now(),
       messages: [{ role: "system", content: SYSTEM_PROMPT }],
@@ -165,15 +167,27 @@ export function useSession() {
 
     const userMessage: Message = { role: "user", content: text };
 
+    // 判定是否首轮：当前会话除 system 外没有任何消息，且标题仍为默认值
+    const currentSession = sessionsRef.current.find((s) => s.id === activeId);
+    const isFirstTurn =
+      !!currentSession &&
+      currentSession.messages.filter((m) => m.role !== "system").length === 0 &&
+      currentSession.title === DEFAULT_TITLE;
+
     // 先更新 messages 和标题
     updateMessages((prev) => {
       const next = [...prev, userMessage, { role: "assistant", content: "" }];
       // 同步更新标题和时间，并重新排序让活跃会话上浮
+      // titleGenerated 为 true 时（LLM 已生成或用户已重命名）不再覆盖
       setSessions((sessions) =>
         sortSessions(
           sessions.map((s) =>
             s.id === activeId
-              ? { ...s, title: extractTitle(next), updatedAt: Date.now() }
+              ? {
+                  ...s,
+                  title: s.titleGenerated ? s.title : extractTitle(next),
+                  updatedAt: Date.now(),
+                }
               : s
           )
         )
@@ -218,8 +232,45 @@ export function useSession() {
 
       scrollToBottomSmooth();
       setStreamingIndex(null);
+
+      // 首轮回答完成后，调用 LLM 生成更精炼的标题
+      if (isFirstTurn && assistantText.trim()) {
+        generateTitle(activeId, text, assistantText);
+      }
     } catch (error) {
       console.error("Send message error:", error);
+    }
+  };
+
+  // 调用 /api/title 生成标题并写回会话
+  const generateTitle = async (
+    sessionId: string,
+    userText: string,
+    assistantText: string
+  ) => {
+    try {
+      const res = await fetch("/api/title", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userMessage: userText,
+          assistantMessage: assistantText,
+        }),
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { title?: string };
+      const title = data.title?.trim();
+      if (!title) return;
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id !== sessionId) return s;
+          // 飞行途中用户已手动命名，放弃覆盖
+          if (s.titleGenerated) return s;
+          return { ...s, title, titleGenerated: true };
+        })
+      );
+    } catch (error) {
+      console.error("Generate title error:", error);
     }
   };
 
@@ -233,7 +284,7 @@ export function useSession() {
   const createSession = () => {
     const newSession: Session = {
       id: uid(),
-      title: "新会话",
+      title: DEFAULT_TITLE,
       pinned: false,
       updatedAt: Date.now(),
       messages: [{ role: "system", content: SYSTEM_PROMPT }],
@@ -251,7 +302,9 @@ export function useSession() {
   // 重命名会话
   const renameSession = (id: string, title: string) => {
     setSessions((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, title } : s))
+      prev.map((s) =>
+        s.id === id ? { ...s, title, titleGenerated: true } : s
+      )
     );
   };
 
@@ -262,7 +315,7 @@ export function useSession() {
       if (filtered.length === 0) {
         const defaultSession: Session = {
           id: uid(),
-          title: "新会话",
+          title: DEFAULT_TITLE,
           pinned: false,
           updatedAt: Date.now(),
           messages: [{ role: "system", content: SYSTEM_PROMPT }],
