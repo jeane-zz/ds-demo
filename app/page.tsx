@@ -25,9 +25,15 @@ export default function Home() {
   } = useSession();
 
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const filteredSessions = sessions.filter((s) =>
-    s.title.toLowerCase().includes(search.toLowerCase())
+    s.title.toLowerCase().includes(debouncedSearch.toLowerCase())
   );
 
   return (
