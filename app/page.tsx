@@ -86,7 +86,7 @@ export default function Home() {
           <div ref={bottomRef}></div>
       </div>
 
-      <InputArea onSend={send} onStop={stop} />
+      <InputArea onSend={send} onStop={stop} messages={messages} />
       </main>
     </div>
   );
