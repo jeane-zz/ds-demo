@@ -15,7 +15,6 @@ const MessageItem = memo(function MessageItem({
   content,
   highlighted = true,
 }: MessageItemProps) {
-  console.log(role, content,);
   return (
     <div className={styles.item}>
       <b>{role === "user" ? "你" : "AI"}:</b>
@@ -23,14 +22,13 @@ const MessageItem = memo(function MessageItem({
       <div className={styles.content}>
         <ReactMarkdown
           components={{
-            code({ inline, className, children, ...props }) {
-             
-              // 提取语言标识
-              // 正则表达式匹配 language- 开头的内容 
-              // Markdown里面 ```js 的className 标记为 language-js
+            code({ className, children, ...props }) {
+              // 新版 react-markdown 不再传 inline 属性。
+              // 块级代码块在解析时会带上 language-xxx 的 className，
+              // 行内代码没有 language- 前缀，以此区分。
               const match = /language-(\w+)/.exec(className || "");
 
-              if (!inline && match) {
+              if (match) {
                 return (
                   <CodeBlock
                     language={match[1]}
