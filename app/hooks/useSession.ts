@@ -284,22 +284,60 @@ export function useSession() {
       const decoder = new TextDecoder();
       let assistantText = "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      // rAF 节流：streaming chunk 进来时只更新 ref,在下一个动画帧把累积文本一次性写入 state,
+      // 避免每个 token 都触发一次 React 重渲染 + ReactMarkdown 重新解析。
+      let pendingText = "";
+      let rafId: number | null = null;
+      let hasPending = false;
 
-        assistantText += decoder.decode(value);
-
+      const flush = () => {
+        if (!hasPending) return;
+        const snapshot = pendingText;
+        hasPending = false;
         updateMessages((prev) => {
           const cloned = [...prev];
           cloned[cloned.length - 1] = {
             role: "assistant",
-            content: assistantText,
+            content: snapshot,
           };
           return cloned;
         });
+        scrollToBottom();
+      };
 
-        requestAnimationFrame(scrollToBottom);
+      const scheduleFlush = () => {
+        if (rafId !== null) return;
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          flush();
+        });
+      };
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          // stream: true 避免多字节字符在 chunk 边界被切坏
+          assistantText += decoder.decode(value, { stream: true });
+          pendingText = assistantText;
+          hasPending = true;
+          scheduleFlush();
+        }
+        // 冲掉解码器内的残余字节
+        const tail = decoder.decode();
+        if (tail) {
+          assistantText += tail;
+          pendingText = assistantText;
+          hasPending = true;
+        }
+      } finally {
+        // 不管正常结束还是 abort,都同步 flush 最后一帧并撤销待办 rAF
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+        flush();
       }
 
       scrollToBottomSmooth();
