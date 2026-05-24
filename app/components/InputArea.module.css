@@ -33,6 +33,25 @@
   color: var(--text-muted);
   text-align: right;
   padding-right: 4px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.compressBtn {
+  font-size: 12px;
+  padding: 2px 8px;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.compressBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .ok {

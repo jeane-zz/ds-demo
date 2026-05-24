@@ -19,17 +19,24 @@ interface InputAreaProps {
   onSend: (content: string) => Promise<void>;
   /** 停止生成 */
   onStop: () => void;
+  /** 手动压缩历史 */
+  onCompress: () => Promise<{ ok: boolean; error?: string }>;
   /** 当前会话的历史消息（用于 token 估算） */
   messages: Message[];
+  /** 当前会话已有的压缩摘要（仅用于 UI 提示） */
+  summary?: string;
 }
 
 export default function InputArea({
   onSend,
   onStop,
+  onCompress,
   messages,
+  summary,
 }: InputAreaProps) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [compressing, setCompressing] = useState(false);
   const loadingRef = useRef(false);
 
   // 估算 token
@@ -48,6 +55,13 @@ export default function InputArea({
       : totalTokens >= TOKEN_WARN
       ? "warn"
       : "ok";
+
+  // 与 useSession 中 KEEP_RECENT_PAIRS=3 保持一致：
+  // 至少要有 > 6 条非 system 消息才有「更早的历史」可压
+  const canCompress = useMemo(
+    () => messages.filter((m) => m.role !== "system").length > 6,
+    [messages]
+  );
 
   const handleSend = async () => {
     const text = input.trim();
@@ -77,12 +91,38 @@ export default function InputArea({
     }
   };
 
+  const handleCompress = async () => {
+    if (compressing || loading || !canCompress) return;
+    setCompressing(true);
+    try {
+      const result = await onCompress();
+      if (!result.ok) {
+        console.warn("压缩失败：", result.error);
+      }
+    } finally {
+      setCompressing(false);
+    }
+  };
+
   return (
     <div className={styles.wrapper}>
       <div className={`${styles.estimate} ${styles[tokenLevel]}`}>
         ≈ {totalTokens.toLocaleString()} / {TOKEN_LIMIT.toLocaleString()} tokens
         {tokenLevel === "warn" && " · 接近上限"}
-        {tokenLevel === "danger" && " · 即将超出，建议新建会话"}
+        {tokenLevel === "danger" && " · 即将超出，建议压缩或新建会话"}
+        {summary && " · 已含摘要"}
+        <button
+          onClick={handleCompress}
+          disabled={compressing || loading || !canCompress}
+          className={styles.compressBtn}
+          title={
+            canCompress
+              ? "把较早的对话压缩成摘要以节省 token"
+              : "历史不足 3 轮，暂无可压缩内容"
+          }
+        >
+          {compressing ? "压缩中…" : "压缩历史"}
+        </button>
       </div>
       <div className={styles.inputRow}>
         <input

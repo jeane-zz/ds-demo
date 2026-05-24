@@ -12,6 +12,7 @@ export default function Home() {
     sessions,
     activeId,
     messages,
+    summary,
     isMounted,
     bottomRef,
     streamingIndex,
@@ -22,6 +23,7 @@ export default function Home() {
     renameSession,
     deleteSession,
     togglePin,
+    compressContext,
   } = useSession();
 
   const [search, setSearch] = useState("");
@@ -86,7 +88,13 @@ export default function Home() {
           <div ref={bottomRef}></div>
       </div>
 
-      <InputArea onSend={send} onStop={stop} messages={messages} />
+      <InputArea
+        onSend={send}
+        onStop={stop}
+        onCompress={compressContext}
+        messages={messages}
+        summary={summary}
+      />
       </main>
     </div>
   );

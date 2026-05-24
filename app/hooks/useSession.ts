@@ -14,6 +14,10 @@ export interface Session {
   updatedAt: number;
   titleGenerated?: boolean;
   messages: Message[];
+  /** 压缩后的历史摘要（不进入 messages，发送时再拼到 system） */
+  summary?: string;
+  /** 已被压缩的 messages 数量（不含 system），用于增量压缩 */
+  compressedUntil?: number;
 }
 
 const STORAGE_KEY = "chat_sessions";
@@ -63,8 +67,9 @@ export function useSession() {
   const [streamingIndex, setStreamingIndex] = useState<number | null>(null);
 
   // 当前会话的 messages（派生）
-  const messages =
-    sessions.find((s) => s.id === activeId)?.messages ?? [];
+  const activeSession = sessions.find((s) => s.id === activeId);
+  const messages = activeSession?.messages ?? [];
+  const summary = activeSession?.summary;
 
   // 组件挂载后从 localStorage 恢复
   useEffect(() => {
@@ -151,14 +156,75 @@ export function useSession() {
   };
 
   // 对发送给 API 的 messages 做 context 截断
-  // 保留 system prompt + 最近 MAX_CONTEXT_PAIRS 轮对话
-  const trimContext = (msgs: Message[]): Message[] => {
+  // 保留 system prompt + (可选)压缩摘要 + 最近 MAX_CONTEXT_PAIRS 轮对话
+  const trimContext = (msgs: Message[], summary?: string): Message[] => {
     const system = msgs.filter((m) => m.role === "system");
     const history = msgs.filter((m) => m.role !== "system");
     // 取最近 MAX_CONTEXT_PAIRS * 2 条（user + assistant 成对）
     const recent = history.slice(-MAX_CONTEXT_PAIRS * 2);
-    return [...system, ...recent];
+    const summaryMsg: Message[] = summary
+      ? [
+          {
+            role: "system",
+            content: `以下是之前对话的压缩摘要，请据此延续对话：\n${summary}`,
+          },
+        ]
+      : [];
+    return [...system, ...summaryMsg, ...recent];
   };
+
+  // 手动压缩：把当前会话中除最近若干轮以外的历史交给 /api/compress 生成摘要
+  const compressContext = useCallback(async (): Promise<{
+    ok: boolean;
+    error?: string;
+  }> => {
+    const session = sessionsRef.current.find((s) => s.id === activeId);
+    if (!session) return { ok: false, error: "no session" };
+
+    const history = session.messages.filter((m) => m.role !== "system");
+    // 保留最近 KEEP_RECENT_PAIRS 轮在 messages 里不参与压缩
+    const KEEP_RECENT_PAIRS = 3;
+    const keepCount = KEEP_RECENT_PAIRS * 2;
+    if (history.length <= keepCount) {
+      return { ok: false, error: "history too short to compress" };
+    }
+    const toCompress = history.slice(0, history.length - keepCount);
+
+    try {
+      const res = await fetch("/api/compress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: toCompress,
+          previousSummary: session.summary,
+        }),
+      });
+      if (!res.ok) return { ok: false, error: `http ${res.status}` };
+      const data = (await res.json()) as { summary?: string; error?: string };
+      if (!data.summary) return { ok: false, error: data.error || "no summary" };
+
+      // 把已压缩部分从 messages 中移除，留下 system + 最近 keepCount 条
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id !== activeId) return s;
+          const sys = s.messages.filter((m) => m.role === "system");
+          const hist = s.messages.filter((m) => m.role !== "system");
+          const kept = hist.slice(-keepCount);
+          return {
+            ...s,
+            messages: [...sys, ...kept],
+            summary: data.summary,
+            compressedUntil: (s.compressedUntil ?? 0) + toCompress.length,
+            updatedAt: Date.now(),
+          };
+        })
+      );
+      return { ok: true };
+    } catch (error) {
+      console.error("Compress error:", error);
+      return { ok: false, error: "request failed" };
+    }
+  }, [activeId]);
 
   // 发送消息
   const send = async (text: string) => {
@@ -199,7 +265,13 @@ export function useSession() {
 
     try {
       // 发送时截断 context（UI 中保留完整记录）
-      const trimmedMessages = trimContext([...messages, userMessage]);
+      const currentSummary = sessionsRef.current.find(
+        (s) => s.id === activeId
+      )?.summary;
+      const trimmedMessages = trimContext(
+        [...messages, userMessage],
+        currentSummary
+      );
 
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -344,6 +416,7 @@ export function useSession() {
     sessions,
     activeId,
     messages,
+    summary,
     isMounted,
     bottomRef,
     streamingIndex,
@@ -355,5 +428,6 @@ export function useSession() {
     renameSession,
     deleteSession,
     togglePin,
+    compressContext,
   };
 }
