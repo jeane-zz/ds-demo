@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback, memo } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import MessageItem from "./components/MessageItem";
 import InputArea from "./components/InputArea";
@@ -40,6 +40,25 @@ export default function Home() {
 
   const filteredSessions = sessions.filter((s) =>
     s.title.toLowerCase().includes(debouncedSearch.toLowerCase())
+  );
+
+  // 给 SessionItem 用的稳定 handler：把 id 作为参数传入,
+  // 这样父级回调引用在跨渲染时保持不变，配合 memo(SessionItem) 才能跳过未变项。
+  const handleSelectSession = useCallback(
+    (id: string) => switchSession(id),
+    [switchSession]
+  );
+  const handleRenameSession = useCallback(
+    (id: string, title: string) => renameSession(id, title),
+    [renameSession]
+  );
+  const handleDeleteSession = useCallback(
+    (id: string) => deleteSession(id),
+    [deleteSession]
+  );
+  const handleTogglePinSession = useCallback(
+    (id: string) => togglePin(id),
+    [togglePin]
   );
 
   // 可见消息（剔除 system），既用于 Virtuoso 也用于普通分支
@@ -82,10 +101,10 @@ export default function Home() {
               key={s.id}
               session={s}
               isActive={s.id === activeId}
-              onSelect={() => switchSession(s.id)}
-              onRename={(title) => renameSession(s.id, title)}
-              onDelete={() => deleteSession(s.id)}
-              onTogglePin={() => togglePin(s.id)}
+              onSelect={handleSelectSession}
+              onRename={handleRenameSession}
+              onDelete={handleDeleteSession}
+              onTogglePin={handleTogglePinSession}
             />
           ))}
         </div>
@@ -148,7 +167,7 @@ export default function Home() {
   );
 }
 
-function SessionItem({
+const SessionItem = memo(function SessionItem({
   session,
   isActive,
   onSelect,
@@ -158,10 +177,10 @@ function SessionItem({
 }: {
   session: { id: string; title: string; pinned?: boolean };
   isActive: boolean;
-  onSelect: () => void;
-  onRename: (title: string) => void;
-  onDelete: () => void;
-  onTogglePin: () => void;
+  onSelect: (id: string) => void;
+  onRename: (id: string, title: string) => void;
+  onDelete: (id: string) => void;
+  onTogglePin: (id: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(session.title);
@@ -182,7 +201,7 @@ function SessionItem({
   const handleSubmit = () => {
     const trimmed = draft.trim();
     if (trimmed) {
-      onRename(trimmed);
+      onRename(session.id, trimmed);
     }
     setEditing(false);
   };
@@ -200,13 +219,13 @@ function SessionItem({
       className={`${styles.sessionItem} ${
         isActive ? styles.sessionItemActive : ""
       }`}
-      onClick={onSelect}
+      onClick={() => onSelect(session.id)}
     >
       <button
         className={`${styles.pinBtn} ${session.pinned ? styles.pinBtnActive : ""}`}
         onClick={(e) => {
           e.stopPropagation();
-          onTogglePin();
+          onTogglePin(session.id);
         }}
       >
         📌
@@ -230,11 +249,22 @@ function SessionItem({
         className={styles.deleteBtn}
         onClick={(e) => {
           e.stopPropagation();
-          onDelete();
+          onDelete(session.id);
         }}
       >
         ✕
       </button>
     </div>
   );
-}
+},
+// SessionItem 只用 session.{id,title,pinned}，不要对整个 session 做引用比较。
+// 这样发送消息时 active session 引用变了但显示字段没变,仍能跳过重渲染。
+(prev, next) =>
+  prev.isActive === next.isActive &&
+  prev.session.id === next.session.id &&
+  prev.session.title === next.session.title &&
+  prev.session.pinned === next.session.pinned &&
+  prev.onSelect === next.onSelect &&
+  prev.onRename === next.onRename &&
+  prev.onDelete === next.onDelete &&
+  prev.onTogglePin === next.onTogglePin);

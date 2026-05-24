@@ -353,7 +353,7 @@ export function useSession() {
   };
 
   // 新建会话
-  const createSession = () => {
+  const createSession = useCallback(() => {
     const newSession: Session = {
       id: uid(),
       title: DEFAULT_TITLE,
@@ -363,25 +363,25 @@ export function useSession() {
     };
     setSessions((prev) => sortSessions([newSession, ...prev]));
     setActiveId(newSession.id);
-  };
+  }, []);
 
   // 切换会话
-  const switchSession = (id: string) => {
+  const switchSession = useCallback((id: string) => {
     setActiveId(id);
     setStreamingIndex(null);
-  };
+  }, []);
 
   // 重命名会话
-  const renameSession = (id: string, title: string) => {
+  const renameSession = useCallback((id: string, title: string) => {
     setSessions((prev) =>
       prev.map((s) =>
         s.id === id ? { ...s, title, titleGenerated: true } : s
       )
     );
-  };
+  }, []);
 
   // 删除会话
-  const deleteSession = (id: string) => {
+  const deleteSession = useCallback((id: string) => {
     setSessions((prev) => {
       const filtered = prev.filter((s) => s.id !== id);
       if (filtered.length === 0) {
@@ -395,22 +395,21 @@ export function useSession() {
         setActiveId(defaultSession.id);
         return [defaultSession];
       }
-      if (id === activeId) {
-        setActiveId(filtered[0].id);
-      }
+      // 用 setActiveId 的函数式更新避免依赖 activeId，让回调引用保持稳定
+      setActiveId((current) => (current === id ? filtered[0].id : current));
       return filtered;
     });
-  };
+  }, []);
 
   // 置顶/取消置顶会话
-  const togglePin = (id: string) => {
+  const togglePin = useCallback((id: string) => {
     setSessions((prev) => {
       const list = prev.map((s) =>
         s.id === id ? { ...s, pinned: !s.pinned } : s
       );
       return sortSessions(list);
     });
-  };
+  }, []);
 
   return {
     sessions,
