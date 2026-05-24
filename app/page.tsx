@@ -1,11 +1,15 @@
 'use client'
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import MessageItem from "./components/MessageItem";
 import InputArea from "./components/InputArea";
 import ThemeToggle from "./components/ThemeToggle";
 import { useSession } from "./hooks/useSession";
 import styles from "./page.module.css";
+
+// 超过该条数后启用虚拟化渲染
+const VIRTUALIZE_THRESHOLD = 30;
 
 export default function Home() {
   const {
@@ -37,6 +41,24 @@ export default function Home() {
   const filteredSessions = sessions.filter((s) =>
     s.title.toLowerCase().includes(debouncedSearch.toLowerCase())
   );
+
+  // 可见消息（剔除 system），既用于 Virtuoso 也用于普通分支
+  const visibleMessages = useMemo(
+    () => messages.filter((msg) => msg.role !== "system"),
+    [messages]
+  );
+  const useVirtual = visibleMessages.length > VIRTUALIZE_THRESHOLD;
+
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+
+  // 切换会话或新建会话时，跳到底部一次（仅虚拟化分支需要）
+  useEffect(() => {
+    if (!useVirtual) return;
+    virtuosoRef.current?.scrollToIndex({
+      index: "LAST",
+      align: "end",
+    });
+  }, [activeId, useVirtual]);
 
   return (
     <div className={styles.layout}>
@@ -71,11 +93,14 @@ export default function Home() {
 
       {/* 主区域 */}
       <main className={styles.main}>
-        <div className={styles.chatArea}>
-          {isMounted &&
-            messages
-              .filter((msg) => msg.role !== "system")
-              .map((msg, index) => (
+        <div
+          className={`${styles.chatArea} ${
+            useVirtual ? styles.chatAreaVirtual : ""
+          }`}
+        >
+          {isMounted && !useVirtual && (
+            <>
+              {visibleMessages.map((msg, index) => (
                 <MessageItem
                   key={index}
                   role={msg.role as "user" | "assistant"}
@@ -85,7 +110,30 @@ export default function Home() {
                   }
                 />
               ))}
-          <div ref={bottomRef}></div>
+              <div ref={bottomRef}></div>
+            </>
+          )}
+          {isMounted && useVirtual && (
+            <Virtuoso
+              ref={virtuosoRef}
+              style={{ height: "100%" }}
+              data={visibleMessages}
+              followOutput="auto"
+              initialTopMostItemIndex={Math.max(0, visibleMessages.length - 1)}
+              computeItemKey={(index) => `${activeId}-${index}`}
+              itemContent={(index, msg) => (
+                <div className={styles.virtualItem}>
+                  <MessageItem
+                    role={msg.role as "user" | "assistant"}
+                    content={msg.content}
+                    highlighted={
+                      streamingIndex === null || index !== streamingIndex
+                    }
+                  />
+                </div>
+              )}
+            />
+          )}
       </div>
 
       <InputArea

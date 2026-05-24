@@ -157,3 +157,22 @@
   overflow-y: auto;
   margin-bottom: 20px;
 }
+
+/* 虚拟化模式下,Virtuoso 自带滚动容器,外层不再滚动也不再加 padding */
+.chatAreaVirtual {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* 虚拟化项目的内边距,与非虚拟化模式的 chatArea padding:20px 视觉对齐 */
+.virtualItem {
+  padding: 0 20px;
+}
+
+.virtualItem:first-child {
+  padding-top: 20px;
+}
+
+.virtualItem:last-child {
+  padding-bottom: 20px;
+}
