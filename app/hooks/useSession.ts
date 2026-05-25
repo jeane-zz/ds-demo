@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { TaskQueue } from "../lib/taskQueue";
 
 export interface Message {
   role: string;
@@ -59,6 +60,11 @@ export function useSession() {
 
   // 用于保存当前请求 controller
   const controllerRef = useRef<AbortController | null>(null);
+
+  // 串行化所有会话变更动作:send / compress / generateTitle 走同一队列,
+  // 避免 streaming 进行中执行 compress 时出现 messages 切片错位等竞态。
+  const queueRef = useRef<TaskQueue>(null as unknown as TaskQueue);
+  if (queueRef.current === null) queueRef.current = new TaskQueue();
 
   // 底部 DOM 引用
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -174,56 +180,59 @@ export function useSession() {
   };
 
   // 手动压缩：把当前会话中除最近若干轮以外的历史交给 /api/compress 生成摘要
-  const compressContext = useCallback(async (): Promise<{
+  const compressContext = useCallback((): Promise<{
     ok: boolean;
     error?: string;
   }> => {
-    const session = sessionsRef.current.find((s) => s.id === activeId);
-    if (!session) return { ok: false, error: "no session" };
+    return queueRef.current.run(async () => {
+      const session = sessionsRef.current.find((s) => s.id === activeId);
+      if (!session) return { ok: false, error: "no session" };
 
-    const history = session.messages.filter((m) => m.role !== "system");
-    // 保留最近 KEEP_RECENT_PAIRS 轮在 messages 里不参与压缩
-    const KEEP_RECENT_PAIRS = 3;
-    const keepCount = KEEP_RECENT_PAIRS * 2;
-    if (history.length <= keepCount) {
-      return { ok: false, error: "history too short to compress" };
-    }
-    const toCompress = history.slice(0, history.length - keepCount);
+      const history = session.messages.filter((m) => m.role !== "system");
+      // 保留最近 KEEP_RECENT_PAIRS 轮在 messages 里不参与压缩
+      const KEEP_RECENT_PAIRS = 3;
+      const keepCount = KEEP_RECENT_PAIRS * 2;
+      if (history.length <= keepCount) {
+        return { ok: false, error: "history too short to compress" };
+      }
+      const toCompress = history.slice(0, history.length - keepCount);
 
-    try {
-      const res = await fetch("/api/compress", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: toCompress,
-          previousSummary: session.summary,
-        }),
-      });
-      if (!res.ok) return { ok: false, error: `http ${res.status}` };
-      const data = (await res.json()) as { summary?: string; error?: string };
-      if (!data.summary) return { ok: false, error: data.error || "no summary" };
+      try {
+        const res = await fetch("/api/compress", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: toCompress,
+            previousSummary: session.summary,
+          }),
+        });
+        if (!res.ok) return { ok: false, error: `http ${res.status}` };
+        const data = (await res.json()) as { summary?: string; error?: string };
+        if (!data.summary)
+          return { ok: false, error: data.error || "no summary" };
 
-      // 把已压缩部分从 messages 中移除，留下 system + 最近 keepCount 条
-      setSessions((prev) =>
-        prev.map((s) => {
-          if (s.id !== activeId) return s;
-          const sys = s.messages.filter((m) => m.role === "system");
-          const hist = s.messages.filter((m) => m.role !== "system");
-          const kept = hist.slice(-keepCount);
-          return {
-            ...s,
-            messages: [...sys, ...kept],
-            summary: data.summary,
-            compressedUntil: (s.compressedUntil ?? 0) + toCompress.length,
-            updatedAt: Date.now(),
-          };
-        })
-      );
-      return { ok: true };
-    } catch (error) {
-      console.error("Compress error:", error);
-      return { ok: false, error: "request failed" };
-    }
+        // 把已压缩部分从 messages 中移除，留下 system + 最近 keepCount 条
+        setSessions((prev) =>
+          prev.map((s) => {
+            if (s.id !== activeId) return s;
+            const sys = s.messages.filter((m) => m.role === "system");
+            const hist = s.messages.filter((m) => m.role !== "system");
+            const kept = hist.slice(-keepCount);
+            return {
+              ...s,
+              messages: [...sys, ...kept],
+              summary: data.summary,
+              compressedUntil: (s.compressedUntil ?? 0) + toCompress.length,
+              updatedAt: Date.now(),
+            };
+          })
+        );
+        return { ok: true };
+      } catch (error) {
+        console.error("Compress error:", error);
+        return { ok: false, error: "request failed" };
+      }
+    });
   }, [activeId]);
 
   // 发送消息
@@ -263,125 +272,129 @@ export function useSession() {
 
     setStreamingIndex(0);
 
-    try {
-      // 发送时截断 context（UI 中保留完整记录）
-      const currentSummary = sessionsRef.current.find(
-        (s) => s.id === activeId
-      )?.summary;
-      const trimmedMessages = trimContext(
-        [...messages, userMessage],
-        currentSummary
-      );
-
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: trimmedMessages }),
-        signal: controller.signal,
-      });
-
-      const reader = response.body!.getReader();
-      const decoder = new TextDecoder();
-      let assistantText = "";
-
-      // rAF 节流：streaming chunk 进来时只更新 ref,在下一个动画帧把累积文本一次性写入 state,
-      // 避免每个 token 都触发一次 React 重渲染 + ReactMarkdown 重新解析。
-      let pendingText = "";
-      let rafId: number | null = null;
-      let hasPending = false;
-
-      const flush = () => {
-        if (!hasPending) return;
-        const snapshot = pendingText;
-        hasPending = false;
-        updateMessages((prev) => {
-          const cloned = [...prev];
-          cloned[cloned.length - 1] = {
-            role: "assistant",
-            content: snapshot,
-          };
-          return cloned;
-        });
-        scrollToBottom();
-      };
-
-      const scheduleFlush = () => {
-        if (rafId !== null) return;
-        rafId = requestAnimationFrame(() => {
-          rafId = null;
-          flush();
-        });
-      };
+    // 全部网络/streaming 走任务队列,保证和 compress / generateTitle 串行
+    return queueRef.current.run(async () => {
+      // 任务真正调度到时,如果用户已经在队列里点了 Stop,则跳过发送
+      if (controller.signal.aborted) {
+        setStreamingIndex(null);
+        return;
+      }
 
       try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        const currentSummary = sessionsRef.current.find(
+          (s) => s.id === activeId
+        )?.summary;
+        const trimmedMessages = trimContext(
+          [...messages, userMessage],
+          currentSummary
+        );
 
-          // stream: true 避免多字节字符在 chunk 边界被切坏
-          assistantText += decoder.decode(value, { stream: true });
-          pendingText = assistantText;
-          hasPending = true;
-          scheduleFlush();
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: trimmedMessages }),
+          signal: controller.signal,
+        });
+
+        const reader = response.body!.getReader();
+        const decoder = new TextDecoder();
+        let assistantText = "";
+
+        let pendingText = "";
+        let rafId: number | null = null;
+        let hasPending = false;
+
+        const flush = () => {
+          if (!hasPending) return;
+          const snapshot = pendingText;
+          hasPending = false;
+          updateMessages((prev) => {
+            const cloned = [...prev];
+            cloned[cloned.length - 1] = {
+              role: "assistant",
+              content: snapshot,
+            };
+            return cloned;
+          });
+          scrollToBottom();
+        };
+
+        const scheduleFlush = () => {
+          if (rafId !== null) return;
+          rafId = requestAnimationFrame(() => {
+            rafId = null;
+            flush();
+          });
+        };
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            assistantText += decoder.decode(value, { stream: true });
+            pendingText = assistantText;
+            hasPending = true;
+            scheduleFlush();
+          }
+          const tail = decoder.decode();
+          if (tail) {
+            assistantText += tail;
+            pendingText = assistantText;
+            hasPending = true;
+          }
+        } finally {
+          if (rafId !== null) {
+            cancelAnimationFrame(rafId);
+            rafId = null;
+          }
+          flush();
         }
-        // 冲掉解码器内的残余字节
-        const tail = decoder.decode();
-        if (tail) {
-          assistantText += tail;
-          pendingText = assistantText;
-          hasPending = true;
+
+        scrollToBottomSmooth();
+        setStreamingIndex(null);
+
+        if (isFirstTurn && assistantText.trim()) {
+          generateTitle(activeId, text, assistantText);
         }
-      } finally {
-        // 不管正常结束还是 abort,都同步 flush 最后一帧并撤销待办 rAF
-        if (rafId !== null) {
-          cancelAnimationFrame(rafId);
-          rafId = null;
-        }
-        flush();
+      } catch (error) {
+        console.error("Send message error:", error);
       }
-
-      scrollToBottomSmooth();
-      setStreamingIndex(null);
-
-      // 首轮回答完成后，调用 LLM 生成更精炼的标题
-      if (isFirstTurn && assistantText.trim()) {
-        generateTitle(activeId, text, assistantText);
-      }
-    } catch (error) {
-      console.error("Send message error:", error);
-    }
+    });
   };
 
   // 调用 /api/title 生成标题并写回会话
-  const generateTitle = async (
+  const generateTitle = (
     sessionId: string,
     userText: string,
     assistantText: string
   ) => {
-    try {
-      const res = await fetch("/api/title", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userMessage: userText,
-          assistantMessage: assistantText,
-        }),
-      });
-      if (!res.ok) return;
-      const data = (await res.json()) as { title?: string };
-      const title = data.title?.trim();
-      if (!title) return;
-      setSessions((prev) =>
-        prev.map((s) => {
-          if (s.id !== sessionId) return s;
-          // 飞行途中用户已手动命名，放弃覆盖
-          if (s.titleGenerated) return s;
-          return { ...s, title, titleGenerated: true };
-        })
-      );
-    } catch (error) {
-      console.error("Generate title error:", error);
-    }
+    queueRef.current.run(async () => {
+      try {
+        const res = await fetch("/api/title", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userMessage: userText,
+            assistantMessage: assistantText,
+          }),
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { title?: string };
+        const title = data.title?.trim();
+        if (!title) return;
+        setSessions((prev) =>
+          prev.map((s) => {
+            if (s.id !== sessionId) return s;
+            // 飞行途中用户已手动命名，放弃覆盖
+            if (s.titleGenerated) return s;
+            return { ...s, title, titleGenerated: true };
+          })
+        );
+      } catch (error) {
+        console.error("Generate title error:", error);
+      }
+    });
   };
 
   // 停止
