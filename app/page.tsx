@@ -22,6 +22,7 @@ export default function Home() {
     streamingIndex,
     send,
     stop,
+    regenerate,
     createSession,
     switchSession,
     renameSession,
@@ -68,6 +69,16 @@ export default function Home() {
   );
   const useVirtual = visibleMessages.length > VIRTUALIZE_THRESHOLD;
 
+  // 最后一条 assistant 在 visibleMessages 里的索引(没有则为 -1);
+  // 用于决定哪条消息显示「重新生成」按钮。streaming 中不显示。
+  const lastAssistantIndex = useMemo(() => {
+    if (streamingIndex !== null) return -1;
+    for (let i = visibleMessages.length - 1; i >= 0; i--) {
+      if (visibleMessages[i].role === "assistant") return i;
+    }
+    return -1;
+  }, [visibleMessages, streamingIndex]);
+
   const virtuosoRef = useRef<VirtuosoHandle>(null);
 
   // 切换会话或新建会话时，跳到底部一次（仅虚拟化分支需要）
@@ -79,6 +90,7 @@ export default function Home() {
     });
   }, [activeId, useVirtual]);
 
+  console.log('page render ---- ')
   return (
     <div className={styles.layout}>
       {/* 侧边栏 */}
@@ -127,6 +139,8 @@ export default function Home() {
                   highlighted={
                     streamingIndex === null || index !== streamingIndex
                   }
+                  canRegenerate={index === lastAssistantIndex}
+                  onRegenerate={regenerate}
                 />
               ))}
               <div ref={bottomRef}></div>
@@ -148,6 +162,8 @@ export default function Home() {
                     highlighted={
                       streamingIndex === null || index !== streamingIndex
                     }
+                    canRegenerate={index === lastAssistantIndex}
+                    onRegenerate={regenerate}
                   />
                 </div>
               )}

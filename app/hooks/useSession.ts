@@ -279,86 +279,131 @@ export function useSession() {
         setStreamingIndex(null);
         return;
       }
-
       try {
-        const currentSummary = sessionsRef.current.find(
-          (s) => s.id === activeId
-        )?.summary;
-        const trimmedMessages = trimContext(
+        const assistantText = await streamAssistant(
           [...messages, userMessage],
-          currentSummary
+          controller.signal
         );
-
-        const response = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: trimmedMessages }),
-          signal: controller.signal,
-        });
-
-        const reader = response.body!.getReader();
-        const decoder = new TextDecoder();
-        let assistantText = "";
-
-        let pendingText = "";
-        let rafId: number | null = null;
-        let hasPending = false;
-
-        const flush = () => {
-          if (!hasPending) return;
-          const snapshot = pendingText;
-          hasPending = false;
-          updateMessages((prev) => {
-            const cloned = [...prev];
-            cloned[cloned.length - 1] = {
-              role: "assistant",
-              content: snapshot,
-            };
-            return cloned;
-          });
-          scrollToBottom();
-        };
-
-        const scheduleFlush = () => {
-          if (rafId !== null) return;
-          rafId = requestAnimationFrame(() => {
-            rafId = null;
-            flush();
-          });
-        };
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            assistantText += decoder.decode(value, { stream: true });
-            pendingText = assistantText;
-            hasPending = true;
-            scheduleFlush();
-          }
-          const tail = decoder.decode();
-          if (tail) {
-            assistantText += tail;
-            pendingText = assistantText;
-            hasPending = true;
-          }
-        } finally {
-          if (rafId !== null) {
-            cancelAnimationFrame(rafId);
-            rafId = null;
-          }
-          flush();
-        }
-
-        scrollToBottomSmooth();
-        setStreamingIndex(null);
-
         if (isFirstTurn && assistantText.trim()) {
           generateTitle(activeId, text, assistantText);
         }
       } catch (error) {
         console.error("Send message error:", error);
+      }
+    });
+  };
+
+  // 把「向 /api/chat 发请求 + rAF 节流流式写入最后一条 assistant 消息」抽出来,
+  // send 和 regenerate 都走这条路径。返回最终拼接好的 assistant 文本。
+  // 调用方负责事先把最后一条 assistant 占位消息(content="")放到 messages 末尾。
+  const streamAssistant = async (
+    msgsForApi: Message[],
+    signal: AbortSignal
+  ): Promise<string> => {
+    const currentSummary = sessionsRef.current.find(
+      (s) => s.id === activeId
+    )?.summary;
+    const trimmedMessages = trimContext(msgsForApi, currentSummary);
+
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: trimmedMessages }),
+      signal,
+    });
+
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let assistantText = "";
+
+    let pendingText = "";
+    let rafId: number | null = null;
+    let hasPending = false;
+
+    const flush = () => {
+      if (!hasPending) return;
+      const snapshot = pendingText;
+      hasPending = false;
+      updateMessages((prev) => {
+        const cloned = [...prev];
+        cloned[cloned.length - 1] = {
+          role: "assistant",
+          content: snapshot,
+        };
+        return cloned;
+      });
+      scrollToBottom();
+    };
+
+    const scheduleFlush = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        flush();
+      });
+    };
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        assistantText += decoder.decode(value, { stream: true });
+        pendingText = assistantText;
+        hasPending = true;
+        scheduleFlush();
+      }
+      const tail = decoder.decode();
+      if (tail) {
+        assistantText += tail;
+        pendingText = assistantText;
+        hasPending = true;
+      }
+    } finally {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      flush();
+    }
+
+    scrollToBottomSmooth();
+    setStreamingIndex(null);
+    return assistantText;
+  };
+
+  // 重新生成最后一条 assistant 回复:把它的 content 清空,
+  // 用前面的 user + history 再走一遍 streamAssistant。
+  const regenerate = async () => {
+    const session = sessionsRef.current.find((s) => s.id === activeId);
+    if (!session) return;
+    const msgs = session.messages;
+    if (msgs.length < 2) return;
+    const last = msgs[msgs.length - 1];
+    const prev = msgs[msgs.length - 2];
+    if (last.role !== "assistant" || prev.role !== "user") return;
+
+    const controller = new AbortController();
+    controllerRef.current = controller;
+
+    // 把最后一条 assistant 清空作为 streaming 占位,前面 history 不动
+    updateMessages((m) => {
+      const cloned = [...m];
+      cloned[cloned.length - 1] = { role: "assistant", content: "" };
+      return cloned;
+    });
+    setStreamingIndex(0);
+
+    return queueRef.current.run(async () => {
+      if (controller.signal.aborted) {
+        setStreamingIndex(null);
+        return;
+      }
+      try {
+        // 发给 API 的历史不包含被重生成的占位 assistant,只到上一条 user 为止
+        await streamAssistant(msgs.slice(0, -1), controller.signal);
+      } catch (error) {
+        console.error("Regenerate error:", error);
       }
     });
   };
@@ -472,6 +517,7 @@ export function useSession() {
     streamingIndex,
     send,
     stop,
+    regenerate,
     clear: deleteSession,
     createSession,
     switchSession,

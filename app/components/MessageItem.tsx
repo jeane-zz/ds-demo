@@ -8,6 +8,10 @@ interface MessageItemProps {
   content: string;
   /** 是否启用代码高亮（streaming 中暂不高亮，结束后才高亮） */
   highlighted?: boolean;
+  /** 是否显示「重新生成」按钮（只在最后一条 assistant 且非 streaming 时为 true） */
+  canRegenerate?: boolean;
+  /** 触发重新生成 */
+  onRegenerate?: () => void;
 }
 
 // 把 content 按 ``` 围栏边界切成段:
@@ -96,6 +100,8 @@ const MessageItem = memo(function MessageItem({
   role,
   content,
   highlighted = true,
+  canRegenerate = false,
+  onRegenerate,
 }: MessageItemProps) {
   const segments = useMemo(() => splitMarkdownSegments(content), [content]);
   return (
@@ -110,6 +116,16 @@ const MessageItem = memo(function MessageItem({
             highlighted={highlighted}
           />
         ))}
+        {canRegenerate && (
+          <button
+            type="button"
+            onClick={onRegenerate}
+            className={styles.regenerateBtn}
+            title="重新生成这条回复"
+          >
+            ↻ 重新生成
+          </button>
+        )}
       </div>
     </div>
   );

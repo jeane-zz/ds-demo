@@ -24,3 +24,20 @@
 .content li > p {
   margin: 0;
 }
+
+.regenerateBtn {
+  margin-top: 4px;
+  font-size: 12px;
+  padding: 2px 8px;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.regenerateBtn:hover {
+  opacity: 1;
+}
