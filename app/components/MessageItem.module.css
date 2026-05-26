@@ -25,8 +25,43 @@
   margin: 0;
 }
 
-.regenerateBtn {
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 4px;
+}
+
+.variantSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.variantBtn {
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 6px;
+  line-height: 18px;
+}
+
+.variantBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.variantCount {
+  min-width: 28px;
+  text-align: center;
+}
+
+.regenerateBtn {
   font-size: 12px;
   padding: 2px 8px;
   cursor: pointer;

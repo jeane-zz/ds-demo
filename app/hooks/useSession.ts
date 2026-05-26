@@ -6,6 +6,10 @@ import { TaskQueue } from "../lib/taskQueue";
 export interface Message {
   role: string;
   content: string;
+  // 仅 assistant 消息使用:存所有历史版本与当前激活索引。
+  // 第一次 regenerate 时把原 content 作为 variants[0] 存下,新回复 push 进来。
+  variants?: string[];
+  activeVariant?: number;
 }
 
 export interface Session {
@@ -372,8 +376,8 @@ export function useSession() {
     return assistantText;
   };
 
-  // 重新生成最后一条 assistant 回复:把它的 content 清空,
-  // 用前面的 user + history 再走一遍 streamAssistant。
+  // 重新生成最后一条 assistant 回复:保留旧版本,在 variants 末尾追加一个空占位
+  // 作为新版本,流式写完后把 content 同步回 variants[activeVariant]。
   const regenerate = async () => {
     const session = sessionsRef.current.find((s) => s.id === activeId);
     if (!session) return;
@@ -386,10 +390,18 @@ export function useSession() {
     const controller = new AbortController();
     controllerRef.current = controller;
 
-    // 把最后一条 assistant 清空作为 streaming 占位,前面 history 不动
+    // 把当前 content 收纳进 variants,新增一个空占位作为新版本并激活它
     updateMessages((m) => {
       const cloned = [...m];
-      cloned[cloned.length - 1] = { role: "assistant", content: "" };
+      const tail = cloned[cloned.length - 1];
+      const existing = tail.variants ?? [tail.content];
+      const nextVariants = [...existing, ""];
+      cloned[cloned.length - 1] = {
+        role: "assistant",
+        content: "",
+        variants: nextVariants,
+        activeVariant: nextVariants.length - 1,
+      };
       return cloned;
     });
     setStreamingIndex(0);
@@ -401,12 +413,54 @@ export function useSession() {
       }
       try {
         // 发给 API 的历史不包含被重生成的占位 assistant,只到上一条 user 为止
-        await streamAssistant(msgs.slice(0, -1), controller.signal);
+        const finalText = await streamAssistant(
+          msgs.slice(0, -1),
+          controller.signal
+        );
+        // 把最终文本写回 variants[activeVariant],保持 content 与之同步
+        updateMessages((m) => {
+          const cloned = [...m];
+          const tail = cloned[cloned.length - 1];
+          if (!tail.variants || tail.activeVariant === undefined) return m;
+          const nextVariants = [...tail.variants];
+          nextVariants[tail.activeVariant] = finalText;
+          cloned[cloned.length - 1] = {
+            ...tail,
+            content: finalText,
+            variants: nextVariants,
+          };
+          return cloned;
+        });
       } catch (error) {
         console.error("Regenerate error:", error);
       }
     });
   };
+
+  // 切换最后一条 assistant 消息的版本
+  const setVariant = useCallback(
+    (index: number) => {
+      updateMessages((m) => {
+        if (m.length === 0) return m;
+        const tail = m[m.length - 1];
+        if (
+          tail.role !== "assistant" ||
+          !tail.variants ||
+          index < 0 ||
+          index >= tail.variants.length
+        )
+          return m;
+        const cloned = [...m];
+        cloned[cloned.length - 1] = {
+          ...tail,
+          content: tail.variants[index],
+          activeVariant: index,
+        };
+        return cloned;
+      });
+    },
+    [updateMessages]
+  );
 
   // 调用 /api/title 生成标题并写回会话
   const generateTitle = (
@@ -518,6 +572,7 @@ export function useSession() {
     send,
     stop,
     regenerate,
+    setVariant,
     clear: deleteSession,
     createSession,
     switchSession,

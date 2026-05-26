@@ -23,6 +23,7 @@ export default function Home() {
     send,
     stop,
     regenerate,
+    setVariant,
     createSession,
     switchSession,
     renameSession,
@@ -141,6 +142,17 @@ export default function Home() {
                   }
                   canRegenerate={index === lastAssistantIndex}
                   onRegenerate={regenerate}
+                  variantIndex={
+                    index === lastAssistantIndex ? msg.activeVariant : undefined
+                  }
+                  variantCount={
+                    index === lastAssistantIndex
+                      ? msg.variants?.length
+                      : undefined
+                  }
+                  onSelectVariant={
+                    index === lastAssistantIndex ? setVariant : undefined
+                  }
                 />
               ))}
               <div ref={bottomRef}></div>
@@ -164,6 +176,19 @@ export default function Home() {
                     }
                     canRegenerate={index === lastAssistantIndex}
                     onRegenerate={regenerate}
+                    variantIndex={
+                      index === lastAssistantIndex
+                        ? msg.activeVariant
+                        : undefined
+                    }
+                    variantCount={
+                      index === lastAssistantIndex
+                        ? msg.variants?.length
+                        : undefined
+                    }
+                    onSelectVariant={
+                      index === lastAssistantIndex ? setVariant : undefined
+                    }
                   />
                 </div>
               )}

@@ -12,6 +12,12 @@ interface MessageItemProps {
   canRegenerate?: boolean;
   /** 触发重新生成 */
   onRegenerate?: () => void;
+  /** 当前激活的版本索引（0-based） */
+  variantIndex?: number;
+  /** 总版本数,>=2 时显示版本切换器 */
+  variantCount?: number;
+  /** 切换到指定版本 */
+  onSelectVariant?: (index: number) => void;
 }
 
 // 把 content 按 ``` 围栏边界切成段:
@@ -102,8 +108,15 @@ const MessageItem = memo(function MessageItem({
   highlighted = true,
   canRegenerate = false,
   onRegenerate,
+  variantIndex,
+  variantCount,
+  onSelectVariant,
 }: MessageItemProps) {
   const segments = useMemo(() => splitMarkdownSegments(content), [content]);
+  const showVariants =
+    variantCount !== undefined &&
+    variantCount >= 2 &&
+    variantIndex !== undefined;
   return (
     <div className={styles.item}>
       <b>{role === "user" ? "你" : "AI"}:</b>
@@ -116,16 +129,43 @@ const MessageItem = memo(function MessageItem({
             highlighted={highlighted}
           />
         ))}
-        {canRegenerate && (
-          <button
-            type="button"
-            onClick={onRegenerate}
-            className={styles.regenerateBtn}
-            title="重新生成这条回复"
-          >
-            ↻ 重新生成
-          </button>
-        )}
+        <div className={styles.actions}>
+          {showVariants && (
+            <span className={styles.variantSwitch}>
+              <button
+                type="button"
+                className={styles.variantBtn}
+                onClick={() => onSelectVariant?.(variantIndex! - 1)}
+                disabled={variantIndex! <= 0}
+                aria-label="上一个版本"
+              >
+                ‹
+              </button>
+              <span className={styles.variantCount}>
+                {variantIndex! + 1}/{variantCount}
+              </span>
+              <button
+                type="button"
+                className={styles.variantBtn}
+                onClick={() => onSelectVariant?.(variantIndex! + 1)}
+                disabled={variantIndex! >= variantCount! - 1}
+                aria-label="下一个版本"
+              >
+                ›
+              </button>
+            </span>
+          )}
+          {canRegenerate && (
+            <button
+              type="button"
+              onClick={onRegenerate}
+              className={styles.regenerateBtn}
+              title="重新生成这条回复"
+            >
+              ↻ 重新生成
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
