@@ -1,5 +1,6 @@
 import { memo, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import CodeBlock from "./CodeBlock";
 import styles from "./MessageItem.module.css";
 
@@ -84,6 +85,9 @@ const markdownComponents = {
   },
 };
 
+// remark plugins 提到模块级常量,避免每次 render 都新建数组触发 ReactMarkdown 重解析
+const remarkPlugins = [remarkGfm];
+
 // 单段 markdown：text 不变 + highlighted 不变时直接跳过重渲染
 const MarkdownSegment = memo(function MarkdownSegment({
   text,
@@ -99,7 +103,11 @@ const MarkdownSegment = memo(function MarkdownSegment({
     }),
     [highlighted]
   );
-  return <ReactMarkdown components={components}>{text}</ReactMarkdown>;
+  return (
+    <ReactMarkdown remarkPlugins={remarkPlugins} components={components}>
+      {text}
+    </ReactMarkdown>
+  );
 });
 
 const MessageItem = memo(function MessageItem({
@@ -118,9 +126,11 @@ const MessageItem = memo(function MessageItem({
     variantCount >= 2 &&
     variantIndex !== undefined;
   return (
-    <div className={styles.item}>
-      <b>{role === "user" ? "你" : "AI"}:</b>
-
+    <div
+      className={styles.item}
+      data-role={role}
+      data-role-label={role === "user" ? "你" : "AI"}
+    >
       <div className={styles.content}>
         {segments.map((seg, i) => (
           <MarkdownSegment
