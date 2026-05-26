@@ -330,7 +330,11 @@ export function useSession() {
       hasPending = false;
       updateMessages((prev) => {
         const cloned = [...prev];
+        const tail = cloned[cloned.length - 1];
+        // spread tail 而不是整体覆盖,以保留 regenerate 在占位时写入的
+        // variants / activeVariant 字段;send 路径下 tail 没有这两个字段也不受影响。
         cloned[cloned.length - 1] = {
+          ...tail,
           role: "assistant",
           content: snapshot,
         };
