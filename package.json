@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.64",
+    "@huggingface/transformers": "^4.2.0",
     "ai": "^6.0.184",
     "next": "16.2.6",
     "openai": "^6.38.0",

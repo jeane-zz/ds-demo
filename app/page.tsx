@@ -5,6 +5,7 @@ import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import MessageItem from "./components/MessageItem";
 import InputArea from "./components/InputArea";
 import ThemeToggle from "./components/ThemeToggle";
+import { MessageSearch } from "./components/MessageSearch";
 import { useSession } from "./hooks/useSession";
 import styles from "./page.module.css";
 
@@ -108,6 +109,15 @@ export default function Home() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+
+        {/* 消息语义搜索 */}
+        <MessageSearch
+          messages={visibleMessages.map((m, i) => ({
+            id: `${activeId}-${i}`,
+            text: m.content,
+          }))}
+        />
+
         <div className={styles.sessionList}>
           {filteredSessions.map((s) => (
             <SessionItem
