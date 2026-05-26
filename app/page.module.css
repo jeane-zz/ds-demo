@@ -1,19 +1,19 @@
 .layout {
   display: flex;
   height: 100vh;
-  font-family: sans-serif;
+  font-family: var(--font-sans);
 }
 
 /* 侧边栏 */
 .sidebar {
-  width: 260px;
+  width: 264px;
   background: var(--sidebar-bg);
   border-right: 1px solid var(--sidebar-border);
   display: flex;
   flex-direction: column;
-  padding: 12px;
+  padding: 24px 18px 18px;
   flex-shrink: 0;
-  gap: 8px;
+  gap: 12px;
 }
 
 .toolbar {
@@ -22,14 +22,16 @@
 }
 
 .searchInput {
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
   background: var(--bg-input);
   color: var(--text-primary);
+  font-family: var(--font-sans);
   font-size: 13px;
   outline: none;
+  transition: border-color 0.15s;
 }
 
 .searchInput::placeholder {
@@ -37,23 +39,25 @@
 }
 
 .searchInput:focus {
-  border-color: var(--accent);
+  border-color: var(--text-secondary);
 }
 
 .newChatBtn {
   flex: 1;
-  height: 40px;
+  height: 36px;
   cursor: pointer;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
   background: var(--bg-input);
-  font-size: 14px;
+  font-family: var(--font-sans);
+  font-size: 13px;
   color: var(--text-primary);
-  transition: background-color 0.2s;
+  transition: background-color 0.15s, border-color 0.15s;
 }
 
 .newChatBtn:hover {
   background: var(--bg-hover);
+  border-color: var(--text-muted);
 }
 
 .sessionList {
@@ -61,25 +65,30 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  margin-top: 2px;
+  padding-right: 4px;
 }
 
 .sessionItem {
   display: flex;
   align-items: center;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 13px;
-  color: var(--text-primary);
+  color: var(--text-secondary);
+  transition: color 0.15s, background-color 0.15s;
 }
 
 .sessionItem:hover {
+  color: var(--text-primary);
   background: var(--bg-hover);
 }
 
 .sessionItemActive {
-  background: var(--bg-active);
+  color: var(--text-primary);
+  background: var(--accent-soft);
   font-weight: 500;
 }
 
@@ -87,16 +96,18 @@
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 12px;
-  padding: 0 4px 0 0;
+  font-size: 11px;
+  padding: 0 6px 0 0;
   line-height: 1;
-  opacity: 0.3;
-  transition: opacity 0.2s;
+  opacity: 0;
+  transition: opacity 0.18s;
   flex-shrink: 0;
+  color: var(--text-muted);
 }
 
 .pinBtnActive {
   opacity: 1;
+  color: var(--accent);
 }
 
 .sessionItem:hover .pinBtn {
@@ -118,20 +129,28 @@
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-muted);
-  padding: 0 0 0 6px;
+  padding: 0 4px 0 8px;
   line-height: 1;
+  opacity: 0;
+  transition: opacity 0.18s, color 0.15s;
+}
+
+.sessionItem:hover .deleteBtn {
+  opacity: 0.5;
 }
 
 .deleteBtn:hover {
+  opacity: 1 !important;
   color: var(--danger);
 }
 
 .renameInput {
   flex: 1;
+  font-family: var(--font-sans);
   font-size: 13px;
-  padding: 2px 4px;
+  padding: 2px 6px;
   border: 1px solid var(--accent);
   border-radius: 4px;
   background: var(--bg-input);
@@ -144,16 +163,16 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  max-width: 800px;
+  max-width: 760px;
   margin: 0 auto;
-  padding: 40px 20px;
+  padding: 36px 28px 24px;
   width: 100%;
 }
 
 .chatArea {
   flex: 1;
-  border: 1px solid var(--border-color);
-  padding: 20px;
+  border: none;
+  padding: 8px 4px 16px;
   overflow-y: auto;
   margin-bottom: 20px;
 }
@@ -164,15 +183,15 @@
   overflow: hidden;
 }
 
-/* 虚拟化项目的内边距,与非虚拟化模式的 chatArea padding:20px 视觉对齐 */
+/* 虚拟化项目的内边距,与非虚拟化模式的 chatArea padding 视觉对齐 */
 .virtualItem {
-  padding: 0 20px;
+  padding: 0 4px;
 }
 
 .virtualItem:first-child {
-  padding-top: 20px;
+  padding-top: 8px;
 }
 
 .virtualItem:last-child {
-  padding-bottom: 20px;
+  padding-bottom: 16px;
 }
