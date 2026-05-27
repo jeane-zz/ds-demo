@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useLayoutEffect } from "react";
 import styles from "./InputArea.module.css";
 import { estimateTokens } from "../utils/tokenEstimate";
 
@@ -38,6 +38,15 @@ export default function InputArea({
   const [loading, setLoading] = useState(false);
   const [compressing, setCompressing] = useState(false);
   const loadingRef = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 让 textarea 高度跟随内容，受 CSS 上的 min-height / max-height 兜底
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [input]);
 
   // 估算 token
   const totalTokens = useMemo(() => {
@@ -85,8 +94,9 @@ export default function InputArea({
     loadingRef.current = false;
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
       handleSend();
     }
   };
@@ -125,11 +135,13 @@ export default function InputArea({
         </button>
       </div>
       <div className={styles.inputRow}>
-        <input
+        <textarea
+          ref={textareaRef}
+          rows={1}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="请输入..."
+          placeholder="请输入... (Enter 发送，Shift+Enter 换行)"
           className={styles.inputField}
           disabled={loading}
         />
