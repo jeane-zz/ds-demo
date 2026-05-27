@@ -112,6 +112,7 @@ export default function Home() {
 
         {/* 消息语义搜索 */}
         <MessageSearch
+          sessionId={activeId}
           messages={visibleMessages.map((m, i) => ({
             id: `${activeId}-${i}`,
             text: m.content,

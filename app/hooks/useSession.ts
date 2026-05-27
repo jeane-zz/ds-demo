@@ -309,10 +309,37 @@ export function useSession() {
     )?.summary;
     const trimmedMessages = trimContext(msgsForApi, currentSummary);
 
+    // ── Conversation RAG ──────────────────────────────────────────
+    // 从全量历史中检索与当前用户问题最相关的消息，拼入 context
+    let ragContext: Message[] = [];
+    try {
+      const history = msgsForApi.filter((m) => m.role !== "system");
+      const lastUserMsg = [...history].reverse().find((m) => m.role === "user");
+      if (lastUserMsg && history.length > 4) {
+        const { retrieveRelevantContext } = await import(
+          "../lib/conversationRag"
+        );
+        ragContext = await retrieveRelevantContext(activeId, lastUserMsg.content, history);
+      }
+    } catch (e) {
+      console.warn("RAG 检索出错，跳过:", e);
+    }
+
+    // 组装最终消息：system + RAG 上下文 + 压缩摘要 + 最近对话
+    const system = trimmedMessages.filter((m) => m.role === "system");
+    const summary = trimmedMessages.filter(
+      (m) => m.role !== "system" && m.content.startsWith("以下是之前对话的")
+    );
+    const recent = trimmedMessages.filter(
+      (m) => m.role !== "system" && !m.content.startsWith("以下是之前对话的")
+    );
+    const finalMessages = [...system, ...ragContext, ...summary, ...recent];
+    // ────────────────────────────────────────────────────────────────
+
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: trimmedMessages }),
+      body: JSON.stringify({ messages: finalMessages }),
       signal,
     });
 
