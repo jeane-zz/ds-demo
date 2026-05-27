@@ -319,9 +319,11 @@ export function useSession() {
     // ── Conversation RAG ──────────────────────────────────────────
     // 从全量历史中检索与当前用户问题最相关的消息，拼入 context
     let ragContext: Message[] = [];
+    let lastUserMsg: Message | undefined;
     try {
       const history = msgsForApi.filter((m) => m.role !== "system");
-      const lastUserMsg = [...history].reverse().find((m) => m.role === "user");
+
+      lastUserMsg = [...history].reverse().find((m) => m.role === "user");
       if (lastUserMsg && history.length > 4) {
         const { retrieveRelevantContext } = await import(
           "../lib/conversationRag"
@@ -329,10 +331,58 @@ export function useSession() {
         ragContext = await retrieveRelevantContext(activeId, lastUserMsg.content, history);
       }
     } catch (e) {
-      console.warn("RAG 检索出错，跳过:", e);
+      console.warn("对话 RAG 检索出错，跳过:", e);
     }
 
-    // 组装最终消息：system + RAG 上下文 + 压缩摘要 + 最近对话
+    // ── File RAG ──────────────────────────────────────────────────
+    // 从已上传的 .txt / .md 文件中检索与当前问题相关的片段
+    let fileRagContext: Message[] = [];
+    try {
+      if (lastUserMsg) {
+        const { searchFileChunks, indexFileChunks } = await import(
+          "../lib/fileChunkRag"
+        );
+
+        // 如果当前消息包含文件内容，先异步建立索引（不阻塞回复）
+        const filePattern = /`([^`]+)`:\n```\n([\s\S]*?)```/g;
+        let match: RegExpExecArray | null;
+        while ((match = filePattern.exec(lastUserMsg.content)) !== null) {
+          const fName = match[1];
+          const fContent = match[2];
+          if (
+            (fName.endsWith(".txt") || fName.endsWith(".md")) &&
+            fContent.length > 0
+          ) {
+            Promise.resolve(
+              indexFileChunks(activeId, fName, fContent).catch((e) =>
+                console.warn(`为 ${fName} 建立索引失败:`, e)
+              )
+            );
+          }
+        }
+
+        // 检索文件 chunks
+        const results = await searchFileChunks(lastUserMsg.content, activeId, 3, 0.2);
+        if (results.length > 0) {
+          const contextText = results
+            .map(
+              (r) =>
+                `[文件: ${r.fileName} (第 ${r.index + 1}/${r.total} 段)]\n${r.text}`
+            )
+            .join("\n\n---\n\n");
+          fileRagContext = [
+            {
+              role: "system",
+              content: `以下是用户上传文件中与当前问题相关的内容：\n\n${contextText}`,
+            },
+          ];
+        }
+      }
+    } catch (e) {
+      console.warn("文件 RAG 检索出错，跳过:", e);
+    }
+
+    // 组装最终消息：system + Conversation RAG + File RAG + 压缩摘要 + 最近对话
     const system = trimmedMessages.filter((m) => m.role === "system");
     const summary = trimmedMessages.filter(
       (m) => m.role !== "system" && m.content.startsWith("以下是之前对话的")
@@ -340,7 +390,8 @@ export function useSession() {
     const recent = trimmedMessages.filter(
       (m) => m.role !== "system" && !m.content.startsWith("以下是之前对话的")
     );
-    const finalMessages = [...system, ...ragContext, ...summary, ...recent];
+
+    const finalMessages = [...system, ...ragContext, ...fileRagContext, ...summary, ...recent];
     // ────────────────────────────────────────────────────────────────
 
     const response = await fetch("/api/chat", {
