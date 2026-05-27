@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef, useMemo, useLayoutEffect } from "react";
+import { useState, useRef, useMemo, useLayoutEffect, useCallback } from "react";
 import styles from "./InputArea.module.css";
 import { estimateTokens } from "../utils/tokenEstimate";
+import FileUpload, { type FileItem } from "./FileUpload";
 
 // DeepSeek-chat 上下文上限 64K
 const TOKEN_LIMIT = 64000;
@@ -35,6 +36,7 @@ export default function InputArea({
   summary,
 }: InputAreaProps) {
   const [input, setInput] = useState("");
+  const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [compressing, setCompressing] = useState(false);
   const loadingRef = useRef(false);
@@ -55,8 +57,12 @@ export default function InputArea({
       0
     );
     const inputTokens = estimateTokens(input);
-    return historyTokens + inputTokens;
-  }, [messages, input]);
+    const fileTokens = files.reduce(
+      (sum, f) => sum + estimateTokens(f.content),
+      0
+    );
+    return historyTokens + inputTokens + fileTokens;
+  }, [messages, input, files]);
 
   const tokenLevel: "ok" | "warn" | "danger" =
     totalTokens >= TOKEN_DANGER
@@ -74,19 +80,49 @@ export default function InputArea({
 
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || loadingRef.current) return;
+    if ((!text && files.length === 0) || loadingRef.current) return;
+
+    const payload =
+      files.length > 0
+        ? [
+            text,
+            ...files.map(
+              (f) => `\n\n\`${f.name}\`:\n\`\`\`\n${f.content}\n\`\`\``
+            ),
+          ]
+            .filter(Boolean)
+            .join("")
+        : text;
 
     setLoading(true);
     loadingRef.current = true;
     setInput("");
+    setFiles([]);
 
     try {
-      await onSend(text);
+      await onSend(payload);
     } finally {
       setLoading(false);
       loadingRef.current = false;
     }
   };
+
+  const handleAddFiles = useCallback((items: FileItem[]) => {
+    setFiles((prev) => {
+      // 按文件名去重，后加入的覆盖之前的
+      const map = new Map(prev.map((f) => [f.name, f]));
+      items.forEach((f) => map.set(f.name, f));
+      return Array.from(map.values());
+    });
+  }, []);
+
+  const handleRemoveFile = useCallback((name: string) => {
+    setFiles((prev) => prev.filter((f) => f.name !== name));
+  }, []);
+
+  const handleClearFiles = useCallback(() => {
+    setFiles([]);
+  }, []);
 
   const handleStop = () => {
     onStop();
@@ -134,6 +170,12 @@ export default function InputArea({
           {compressing ? "压缩中…" : "压缩历史"}
         </button>
       </div>
+      <FileUpload
+        files={files}
+        onAdd={handleAddFiles}
+        onRemove={handleRemoveFile}
+        onClear={handleClearFiles}
+      />
       <div className={styles.inputRow}>
         <textarea
           ref={textareaRef}
