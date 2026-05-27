@@ -44,6 +44,8 @@ export function MessageSearch({ sessionId, messages, onSelectResult }: MessageSe
     prevSessionKeyRef.current = key;
 
     if (messages.length === 0) {
+      // 从外部索引器同步空状态，无法用派生值替代
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsIndexed(false);
       return;
     }

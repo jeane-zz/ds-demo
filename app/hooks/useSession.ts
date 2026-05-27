@@ -82,6 +82,10 @@ export function useSession() {
   const summary = activeSession?.summary;
 
   // 组件挂载后从 localStorage 恢复
+  // SSR 下 localStorage 不可用，且需要保持 hydration 一致（page.tsx 用 isMounted
+  // 守卫消息渲染），所以初始化必须在 effect 中完成 — 这里的 setState 不是从 props
+  // 派生 state，而是从外部系统加载初值，规则在该场景没有更轻量的等价方案。
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -113,10 +117,13 @@ export function useSession() {
     setActiveId(defaultSession.id);
     setIsMounted(true);
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // 用 ref 跟踪最新 sessions，防抖写入 localStorage
   const sessionsRef = useRef(sessions);
-  sessionsRef.current = sessions;
+  useEffect(() => {
+    sessionsRef.current = sessions;
+  });
 
   // 持久化所有会话（防抖 1s，stream 过程中不频繁写入）
   useEffect(() => {

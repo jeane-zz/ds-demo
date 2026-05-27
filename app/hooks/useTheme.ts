@@ -13,6 +13,8 @@ export function useTheme() {
   const [mounted, setMounted] = useState(false);
 
   // 挂载后再从 layout 注入 script 设置好的 data-theme 同步真实主题
+  // 这是从外部系统（DOM）读取初值的合法场景，不是从 props 派生 state
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const attr = document.documentElement.getAttribute("data-theme");
     if (attr === "dark" || attr === "light") {
@@ -20,6 +22,7 @@ export function useTheme() {
     }
     setMounted(true);
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const toggle = useCallback(() => {
     setTheme((prev) => {
