@@ -26,6 +26,7 @@ interface EmbeddingRecord {
   text: string;
   embedding: number[]; // Float32Array 序列化为普通数组
   updatedAt: number;
+  isFileChunk?: boolean;
 }
 
 function openDB(): Promise<IDBDatabase> {
@@ -60,7 +61,10 @@ async function saveEmbeddingsToDB(
     cursorReq.onsuccess = (e) => {
       const cursor = (e.target as IDBRequest).result;
       if (cursor) {
-        store.delete(cursor.primaryKey);
+        const record = cursor.value as EmbeddingRecord;
+        if (!record.isFileChunk) {
+          store.delete(cursor.primaryKey);
+        }
         cursor.continue();
       } else {
         resolve();
@@ -91,14 +95,14 @@ async function saveEmbeddingsToDB(
 /** 从 IndexedDB 读取指定 session 的嵌入向量（公开导出，供 Conversation RAG 使用） */
 export async function loadEmbeddingsFromDB(
   sessionId: string
-): Promise<{ id: string; text: string; embedding: Float32Array }[]> {
+): Promise<{ id: string; text: string; embedding: Float32Array; isFileChunk?: boolean }[]> {
   const db = await openDB();
   const tx = db.transaction(STORE_NAME, "readonly");
   const store = tx.objectStore(STORE_NAME);
   const index = store.index("sessionId");
 
   return new Promise((resolve) => {
-    const results: { id: string; text: string; embedding: Float32Array }[] = [];
+    const results: { id: string; text: string; embedding: Float32Array; isFileChunk?: boolean }[] = [];
     const req = index.openCursor(IDBKeyRange.only(sessionId));
     req.onsuccess = (e) => {
       const cursor = (e.target as IDBRequest).result;
@@ -108,6 +112,7 @@ export async function loadEmbeddingsFromDB(
           id: record.messageId,
           text: record.text,
           embedding: new Float32Array(record.embedding),
+          isFileChunk: record.isFileChunk,
         });
         cursor.continue();
       } else {
@@ -126,7 +131,8 @@ async function checkCacheMatch(
   sessionId: string,
   messages: SearchableMessage[]
 ): Promise<{ id: string; text: string; embedding: Float32Array }[] | null> {
-  const cached = await loadEmbeddingsFromDB(sessionId);
+  const all = await loadEmbeddingsFromDB(sessionId);
+  const cached = all.filter((c) => !c.isFileChunk);
   if (cached.length !== messages.length) return null;
 
   // 按 id 建立索引，检查每条消息是否都有缓存且 text 一致
