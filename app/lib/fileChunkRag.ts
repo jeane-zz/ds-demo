@@ -64,7 +64,6 @@ export function chunkTextFile(
   if (lines.length === 0) return [];
 
   const chunks: FileChunk[] = [];
-  const total = Math.ceil(lines.length / (linesPerChunk - overlapLines));
   let start = 0;
 
   for (let i = 0; start < lines.length; i++) {
@@ -75,9 +74,13 @@ export function chunkTextFile(
       fileName,
       text: chunkLines.join("\n"),
       index: i,
-      total,
+      total: 0,
     });
     start += linesPerChunk - overlapLines;
+  }
+
+  for (const chunk of chunks) {
+    chunk.total = chunks.length;
   }
 
   return chunks;
