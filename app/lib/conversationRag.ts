@@ -58,15 +58,9 @@ export async function retrieveRelevantContext(
     const cached = await loadEmbeddingsFromDB(sessionId);
     if (cached.length === 0) return [];
 
-    // 2. 用 transformers.js 对查询做嵌入
-    const mod = await import("@huggingface/transformers");
-    const pipeline = mod.pipeline;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pipe = await (pipeline as any)(
-      "feature-extraction",
-      "Xenova/all-MiniLM-L6-v2",
-      { quantized: true }
-    );
+    // 2. 用 transformers.js 对查询做嵌入（复用 fileChunkRag 的 pipeline 单例）
+    const { getPipeline } = await import("./fileChunkRag");
+    const pipe = await getPipeline();
     const result = await pipe(query, { pooling: "mean", normalize: true });
     const queryEmbedding = result.data as Float32Array;
 

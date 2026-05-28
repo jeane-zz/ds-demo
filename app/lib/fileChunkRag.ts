@@ -86,7 +86,7 @@ export function chunkTextFile(
 /** 获取已缓存的嵌入 pipeline（单例） */
 let pipelineCache: unknown = null;
 
-async function getPipeline() {
+export async function getPipeline() {
   if (pipelineCache) return pipelineCache;
   const mod = await import("@huggingface/transformers");
   const pipe = await (mod.pipeline as (
