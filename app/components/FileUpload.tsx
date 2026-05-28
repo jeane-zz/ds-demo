@@ -23,18 +23,7 @@ interface FileUploadProps {
 }
 
 /** 可接受的文件类型 */
-const ACCEPT_TYPES = [
-  ".ts", ".tsx", ".js", ".jsx", ".mjs",
-  ".json", ".md", ".mdx",
-  ".css", ".scss", ".less",
-  ".html", ".htm",
-  ".py", ".rb", ".go", ".rs", ".java", ".kt", ".swift",
-  ".yaml", ".yml", ".toml",
-  ".sh", ".bash", ".zsh",
-  ".txt", ".log",
-  ".sql", ".graphql",
-  ".xml",
-];
+const ACCEPT_TYPES = [".txt", ".md", ".mdx"];;
 
 const MAX_FILE_SIZE = 512 * 1024; // 512KB
 
@@ -140,7 +129,7 @@ export default function FileUpload({
         <span className={styles.dropHint}>
           {dragOver ? "释放以上传" : "点击或拖拽文件到此处"}
         </span>
-        <span className={styles.dropSub}>支持代码、文档、配置等文本文件（单文件 ≤ 512KB）</span>
+        <span className={styles.dropSub}>支持 .txt / .md 文件（单文件 ≤ 512KB）</span>
       </div>
 
       {error && <div className={styles.error}>{error}</div>}
