@@ -83,6 +83,19 @@ export default function Home() {
 
   const virtuosoRef = useRef<VirtuosoHandle>(null);
 
+  const handleSelectResult = useCallback(
+    (id: string) => {
+      const index = parseInt(id.split("-").pop() ?? "", 10);
+      if (isNaN(index)) return;
+      if (useVirtual) {
+        virtuosoRef.current?.scrollToIndex({ index, align: "start", behavior: "smooth" });
+      } else {
+        document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    },
+    [useVirtual]
+  );
+
   // 切换会话或新建会话时，跳到底部一次（仅虚拟化分支需要）
   useEffect(() => {
     if (!useVirtual) return;
@@ -117,6 +130,7 @@ export default function Home() {
             id: `${activeId}-${i}`,
             text: m.content,
           }))}
+          onSelectResult={handleSelectResult}
         />
 
         <div className={styles.sessionList}>
@@ -144,8 +158,8 @@ export default function Home() {
           {isMounted && !useVirtual && (
             <>
               {visibleMessages.map((msg, index) => (
+                <div key={index} id={`${activeId}-${index}`}>
                 <MessageItem
-                  key={index}
                   role={msg.role as "user" | "assistant"}
                   content={msg.content}
                   highlighted={
@@ -165,6 +179,7 @@ export default function Home() {
                     index === lastAssistantIndex ? setVariant : undefined
                   }
                 />
+                </div>
               ))}
               <div ref={bottomRef}></div>
             </>
