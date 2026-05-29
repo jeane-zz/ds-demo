@@ -84,11 +84,23 @@ export default function DocsPage() {
   }
 
   return (
-    <div className={styles.layout}>
+    <div className={styles.container}>
+      {/* 顶部导航 */}
+      <header className={styles.header}>
+        <nav className={styles.nav}>
+          <a href="/" className={styles.navItem}>
+            💬 对话
+          </a>
+          <a href="/docs" className={styles.navItem + ' ' + styles.navItemActive}>
+            📚 文档
+          </a>
+        </nav>
+      </header>
+
+      <div className={styles.layout}>
       <aside className={styles.sidebar}>
-        <div className={styles.header}>
-          <h1>📚 开发文档</h1>
-          <a href="/" className={styles.backBtn}>← 返回对话</a>
+        <div className={styles.sidebarHeader}>
+          <h1>📚 文档</h1>
         </div>
 
         <input
@@ -211,6 +223,7 @@ export default function DocsPage() {
           </div>
         )}
       </main>
+      </div>
     </div>
   );
 }
