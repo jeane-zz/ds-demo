@@ -31,9 +31,16 @@ export async function POST(request: NextRequest) {
     const { action, data } = body;
 
     switch (action) {
-      case 'create':
+      case 'create': {
+        // 如果 relatedSessionId 对应的 session 在 DB 中不存在，
+        // 外键约束会导致插入失败，此时置为 null
+        const { SessionDAO } = await import('@/app/lib/dao');
+        if (data.relatedSessionId && !SessionDAO.getById(data.relatedSessionId)) {
+          data.relatedSessionId = undefined;
+        }
         DocumentDAO.create(data);
         return NextResponse.json({ success: true, id: data.id });
+      }
 
       case 'update':
         DocumentDAO.update(data.id, data.updates);
@@ -52,7 +59,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Document API error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     );
   }
