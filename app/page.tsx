@@ -107,14 +107,27 @@ export default function Home() {
 
   console.log('page render ---- ')
   return (
-    <div className={styles.layout}>
+    <div className={styles.container}>
+      {/* 顶部导航 */}
+      <header className={styles.header}>
+        <nav className={styles.nav}>
+          <a href="/" className={styles.navItem + ' ' + styles.navItemActive}>
+            💬 对话
+          </a>
+          <a href="/docs" className={styles.navItem}>
+            📚 文档
+          </a>
+        </nav>
+        <ThemeToggle />
+      </header>
+
+      <div className={styles.layout}>
       {/* 侧边栏 */}
       <aside className={styles.sidebar}>
         <div className={styles.toolbar}>
           <button onClick={createSession} className={styles.newChatBtn}>
             + 新建会话
           </button>
-          <ThemeToggle />
         </div>
         <input
           className={styles.searchInput}
@@ -231,6 +244,7 @@ export default function Home() {
         sessionId={activeId}
       />
       </main>
+      </div>
     </div>
   );
 }

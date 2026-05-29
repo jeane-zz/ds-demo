@@ -5,6 +5,8 @@ import "./globals.css";
 const manrope = Manrope({
   variable: "--font-sans",
   subsets: ["latin"],
+  display: "swap",
+  fallback: ["system-ui", "arial"],
 });
 
 const jetbrainsMono = JetBrains_Mono({
