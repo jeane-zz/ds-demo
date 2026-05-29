@@ -228,6 +228,7 @@ export default function Home() {
         onCompress={compressContext}
         messages={messages}
         summary={summary}
+        sessionId={activeId}
       />
       </main>
     </div>

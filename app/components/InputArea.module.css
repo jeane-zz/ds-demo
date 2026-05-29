@@ -94,6 +94,28 @@
   opacity: 0.4;
 }
 
+.saveDocBtn {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  padding: 3px 10px;
+  cursor: pointer;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+}
+
+.saveDocBtn:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.saveDocBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
 .ok {
   color: var(--text-muted);
 }

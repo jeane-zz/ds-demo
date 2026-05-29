@@ -4,6 +4,7 @@ import { useState, useRef, useMemo, useLayoutEffect, useCallback } from "react";
 import styles from "./InputArea.module.css";
 import { estimateTokens } from "../utils/tokenEstimate";
 import FileUpload, { type FileItem } from "./FileUpload";
+import { SaveDocumentModal } from "./SaveDocumentModal";
 
 // DeepSeek-chat 上下文上限 64K
 const TOKEN_LIMIT = 64000;
@@ -26,6 +27,8 @@ interface InputAreaProps {
   messages: Message[];
   /** 当前会话已有的压缩摘要（仅用于 UI 提示） */
   summary?: string;
+  /** 当前会话 ID（用于保存文档） */
+  sessionId?: string;
 }
 
 export default function InputArea({
@@ -34,11 +37,13 @@ export default function InputArea({
   onCompress,
   messages,
   summary,
+  sessionId,
 }: InputAreaProps) {
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [compressing, setCompressing] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
   const loadingRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -169,6 +174,14 @@ export default function InputArea({
         >
           {compressing ? "压缩中…" : "压缩历史"}
         </button>
+        <button
+          onClick={() => setShowSaveModal(true)}
+          disabled={loading || messages.length <= 1}
+          className={styles.saveDocBtn}
+          title="将当前对话保存为开发文档"
+        >
+          📝 保存为文档
+        </button>
       </div>
       <FileUpload
         files={files}
@@ -195,6 +208,18 @@ export default function InputArea({
           {loading ? "停止生成" : "发送"}
         </button>
       </div>
+
+      {showSaveModal && sessionId && (
+        <SaveDocumentModal
+          sessionId={sessionId}
+          messages={messages.filter((m) => m.role !== "system")}
+          onClose={() => setShowSaveModal(false)}
+          onSaved={() => {
+            setShowSaveModal(false);
+            alert("文档已保存！可以在文档页面查看。");
+          }}
+        />
+      )}
     </div>
   );
 }
