@@ -1,6 +1,50 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  font-family: var(--font-sans);
+}
+
+.header {
+  height: 56px;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: var(--bg-primary);
+  flex-shrink: 0;
+}
+
+.nav {
+  display: flex;
+  gap: 4px;
+}
+
+.navItem {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.navItem:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.navItemActive {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
 .layout {
   display: flex;
-  height: 100vh;
+  flex: 1;
+  overflow: hidden;
   background: var(--bg-primary);
   color: var(--text-primary);
 }
@@ -11,40 +55,24 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: var(--sidebar-bg);
 }
 
-.header {
+.sidebarHeader {
   padding: 1.5rem;
   border-bottom: 1px solid var(--border-color);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
-.header h1 {
+.sidebarHeader h1 {
   font-size: 1.25rem;
   margin: 0;
-}
-
-.backBtn {
-  padding: 0.5rem 1rem;
-  background: var(--bg-secondary);
-  border-radius: 6px;
-  text-decoration: none;
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  transition: background 0.2s;
-}
-
-.backBtn:hover {
-  background: var(--bg-hover);
 }
 
 .searchInput {
   margin: 1rem;
   padding: 0.75rem;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
   color: var(--text-primary);
   font-size: 0.875rem;
@@ -53,14 +81,19 @@
 
 .searchInput:focus {
   outline: none;
-  border-color: var(--accent-color);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.searchInput::placeholder {
+  color: var(--text-muted);
 }
 
 .loading,
 .empty {
   padding: 2rem;
   text-align: center;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .hint {
@@ -79,18 +112,21 @@
 }
 
 .category h3 {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   margin: 0 0 0.5rem;
   color: var(--text-secondary);
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .count {
   font-size: 0.75rem;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 .category ul {
@@ -112,14 +148,20 @@
 }
 
 .category li.active {
-  background: var(--accent-color);
-  color: white;
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
 }
 
 .docTitle {
   font-size: 0.875rem;
   font-weight: 500;
   margin-bottom: 0.25rem;
+  color: var(--text-primary);
+}
+
+.category li.active .docTitle {
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .docTags {
@@ -130,7 +172,7 @@
 
 .tag {
   font-size: 0.75rem;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
 }
 
 .main {
@@ -152,26 +194,28 @@
 }
 
 .docHeader h1 {
-  font-size: 2rem;
+  font-size: 1.75rem;
   margin: 0;
   flex: 1;
+  line-height: 1.3;
 }
 
 .deleteBtn {
   padding: 0.5rem 1rem;
   background: transparent;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-light);
   border-radius: 6px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .deleteBtn:hover {
-  background: #ff4444;
-  border-color: #ff4444;
-  color: white;
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--text-primary);
 }
 
 .meta {
@@ -180,31 +224,31 @@
   flex-wrap: wrap;
   margin-bottom: 2rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-light);
 }
 
 .categoryBadge {
   padding: 0.25rem 0.75rem;
-  background: var(--accent-color);
-  color: white;
+  background: var(--accent-soft);
+  color: var(--accent);
   border-radius: 4px;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: 0.8125rem;
+  font-weight: 600;
 }
 
 .tagBadge {
   padding: 0.25rem 0.75rem;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
   border-radius: 4px;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   color: var(--text-secondary);
 }
 
 .date {
   padding: 0.25rem 0.75rem;
-  color: var(--text-tertiary);
-  font-size: 0.875rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
 }
 
 .section {
@@ -212,41 +256,59 @@
 }
 
 .section h2 {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   margin: 0 0 1rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  color: var(--text-primary);
 }
 
 .content {
-  line-height: 1.6;
+  line-height: 1.7;
   color: var(--text-secondary);
+  font-size: 0.9375rem;
 }
 
 .content p {
   margin: 0 0 1rem;
 }
 
+.content p:last-child {
+  margin-bottom: 0;
+}
+
 .content code {
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
   padding: 0.2rem 0.4rem;
   border-radius: 4px;
+  font-size: 0.875rem;
+  color: var(--accent);
+}
+
+.content pre {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-x: auto;
   font-size: 0.875rem;
 }
 
 .relatedSession {
   margin-top: 2rem;
   padding: 1rem;
-  background: var(--bg-secondary);
+  background: var(--accent-soft);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
   text-align: center;
 }
 
 .relatedSession a {
-  color: var(--accent-color);
+  color: var(--accent);
   text-decoration: none;
   font-weight: 500;
+  font-size: 0.875rem;
 }
 
 .relatedSession a:hover {
@@ -259,15 +321,15 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
 }
 
 .placeholderIcon {
   font-size: 4rem;
   margin-bottom: 1rem;
-  opacity: 0.5;
+  opacity: 0.4;
 }
 
 .placeholder p {
-  font-size: 1.125rem;
+  font-size: 1rem;
 }
