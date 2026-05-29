@@ -99,10 +99,6 @@ export default function DocsPage() {
 
       <div className={styles.layout}>
       <aside className={styles.sidebar}>
-        <div className={styles.sidebarHeader}>
-          <h1>📚 文档</h1>
-        </div>
-
         <input
           className={styles.searchInput}
           placeholder="搜索文档..."
