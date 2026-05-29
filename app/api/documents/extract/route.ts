@@ -4,7 +4,7 @@ import { generateText } from 'ai';
 
 const deepseek = createOpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY,
-  baseURL: 'https://api.deepseek.com/v1',
+  baseURL: 'https://api.deepseek.com',
 });
 
 export async function POST(request: NextRequest) {
@@ -49,7 +49,7 @@ ${conversationText}
 }`;
 
     const { text } = await generateText({
-      model: deepseek('deepseek-chat'),
+      model: deepseek.chat('deepseek-chat'),
       prompt,
       temperature: 0.3,
     });

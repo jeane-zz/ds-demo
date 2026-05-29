@@ -39,9 +39,9 @@ export function SaveDocumentModal({
         body: JSON.stringify({ messages }),
       });
 
-      if (!res.ok) throw new Error('提取失败');
-
       const extracted = await res.json();
+
+      if (!res.ok) throw new Error(extracted.error || '提取失败');
       setFormData({
         title: extracted.title || '',
         category: extracted.category || '',
