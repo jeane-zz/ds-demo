@@ -4,7 +4,7 @@ import { generateText } from 'ai';
 
 const deepseek = createOpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY,
-  baseURL: 'https://api.deepseek.com',
+  baseURL: 'https://api.deepseek.com/v1',
 });
 
 export async function POST(request: NextRequest) {
