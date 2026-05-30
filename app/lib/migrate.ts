@@ -1,5 +1,8 @@
 import { SessionDAO, MessageDAO } from './dao';
 
+const LEGACY_STORAGE_KEY = 'chat_sessions';
+const MIGRATION_STATUS_KEY = 'chat_sessions_migrated_to_sqlite';
+
 interface LegacySession {
   id: string;
   title: string;
@@ -9,10 +12,12 @@ interface LegacySession {
     variants?: string[];
     activeVariant?: number;
   }>;
-  createdAt: number;
+  createdAt?: number;
   updatedAt: number;
   pinned?: boolean;
   summary?: string;
+  titleGenerated?: boolean;
+  compressedUntil?: number;
 }
 
 export function migrateFromLocalStorage(): { success: boolean; count: number; error?: string } {
@@ -21,7 +26,7 @@ export function migrateFromLocalStorage(): { success: boolean; count: number; er
       return { success: false, count: 0, error: 'Not in browser environment' };
     }
 
-    const stored = localStorage.getItem('ai-sessions');
+    const stored = localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!stored) {
       return { success: true, count: 0 };
     }
@@ -30,6 +35,7 @@ export function migrateFromLocalStorage(): { success: boolean; count: number; er
     let migratedCount = 0;
 
     for (const legacy of legacySessions) {
+      const createdAt = legacy.createdAt ?? legacy.updatedAt;
       const existingSession = SessionDAO.getById(legacy.id);
       if (existingSession) {
         continue;
@@ -38,10 +44,12 @@ export function migrateFromLocalStorage(): { success: boolean; count: number; er
       SessionDAO.create({
         id: legacy.id,
         title: legacy.title,
-        createdAt: legacy.createdAt,
+        createdAt,
         updatedAt: legacy.updatedAt,
         pinned: legacy.pinned || false,
         summary: legacy.summary,
+        titleGenerated: legacy.titleGenerated,
+        compressedUntil: legacy.compressedUntil,
       });
 
       const messages = legacy.messages.map((msg, index) => ({
@@ -49,7 +57,7 @@ export function migrateFromLocalStorage(): { success: boolean; count: number; er
         sessionId: legacy.id,
         role: msg.role,
         content: msg.content,
-        createdAt: legacy.createdAt + index,
+        createdAt: createdAt + index,
         variants: msg.variants,
         activeVariant: msg.activeVariant,
       }));
@@ -59,7 +67,7 @@ export function migrateFromLocalStorage(): { success: boolean; count: number; er
     }
 
     if (migratedCount > 0) {
-      localStorage.setItem('ai-sessions-migrated', 'true');
+      localStorage.setItem(MIGRATION_STATUS_KEY, 'true');
     }
 
     return { success: true, count: migratedCount };
@@ -75,5 +83,5 @@ export function migrateFromLocalStorage(): { success: boolean; count: number; er
 
 export function checkMigrationStatus(): boolean {
   if (typeof window === 'undefined') return false;
-  return localStorage.getItem('ai-sessions-migrated') === 'true';
+  return localStorage.getItem(MIGRATION_STATUS_KEY) === 'true';
 }
