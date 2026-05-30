@@ -7,6 +7,8 @@ export interface Session {
   updatedAt: number;
   pinned: boolean;
   summary?: string;
+  titleGenerated?: boolean;
+  compressedUntil?: number;
 }
 
 export interface Message {
@@ -32,62 +34,67 @@ export interface Document {
   updatedAt: number;
 }
 
+interface SessionRow {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  pinned: number;
+  summary: string | null;
+  titleGenerated: number | null;
+  compressedUntil: number | null;
+}
+
+function mapSession(row: SessionRow): Session {
+  return {
+    id: row.id,
+    title: row.title,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    pinned: row.pinned === 1,
+    summary: row.summary || undefined,
+    titleGenerated: row.titleGenerated === 1,
+    compressedUntil: row.compressedUntil ?? 0,
+  };
+}
+
 export class SessionDAO {
   static getAll(): Session[] {
     const rows = db.prepare(`
-      SELECT id, title, createdAt, updatedAt, pinned, summary
+      SELECT id, title, createdAt, updatedAt, pinned, summary, titleGenerated, compressedUntil
       FROM sessions
       ORDER BY pinned DESC, updatedAt DESC
-    `).all() as Array<{
-      id: string;
-      title: string;
-      createdAt: number;
-      updatedAt: number;
-      pinned: number;
-      summary: string | null;
-    }>;
+    `).all() as SessionRow[];
 
-    return rows.map(row => ({
-      ...row,
-      pinned: row.pinned === 1,
-      summary: row.summary || undefined,
-    }));
+    return rows.map(mapSession);
   }
 
   static getById(id: string): Session | null {
     const row = db.prepare(`
-      SELECT id, title, createdAt, updatedAt, pinned, summary
+      SELECT id, title, createdAt, updatedAt, pinned, summary, titleGenerated, compressedUntil
       FROM sessions
       WHERE id = ?
-    `).get(id) as {
-      id: string;
-      title: string;
-      createdAt: number;
-      updatedAt: number;
-      pinned: number;
-      summary: string | null;
-    } | undefined;
+    `).get(id) as SessionRow | undefined;
 
     if (!row) return null;
-
-    return {
-      ...row,
-      pinned: row.pinned === 1,
-      summary: row.summary || undefined,
-    };
+    return mapSession(row);
   }
 
   static create(session: Session): void {
     db.prepare(`
-      INSERT INTO sessions (id, title, createdAt, updatedAt, pinned, summary)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO sessions (
+        id, title, createdAt, updatedAt, pinned, summary, titleGenerated, compressedUntil
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       session.id,
       session.title,
       session.createdAt,
       session.updatedAt,
       session.pinned ? 1 : 0,
-      session.summary || null
+      session.summary || null,
+      session.titleGenerated ? 1 : 0,
+      session.compressedUntil ?? 0
     );
   }
 
@@ -110,6 +117,14 @@ export class SessionDAO {
     if (updates.summary !== undefined) {
       fields.push('summary = ?');
       values.push(updates.summary || null);
+    }
+    if (updates.titleGenerated !== undefined) {
+      fields.push('titleGenerated = ?');
+      values.push(updates.titleGenerated ? 1 : 0);
+    }
+    if (updates.compressedUntil !== undefined) {
+      fields.push('compressedUntil = ?');
+      values.push(updates.compressedUntil);
     }
 
     if (fields.length === 0) return;
@@ -144,7 +159,7 @@ export class MessageDAO {
       ...row,
       role: row.role as 'user' | 'assistant' | 'system',
       variants: row.variants ? JSON.parse(row.variants) : undefined,
-      activeVariant: row.activeVariant || undefined,
+      activeVariant: row.activeVariant ?? undefined,
     }));
   }
 
@@ -159,7 +174,7 @@ export class MessageDAO {
       message.content,
       message.createdAt,
       message.variants ? JSON.stringify(message.variants) : null,
-      message.activeVariant || 0
+      message.activeVariant ?? 0
     );
   }
 
@@ -205,7 +220,7 @@ export class MessageDAO {
           msg.content,
           msg.createdAt,
           msg.variants ? JSON.stringify(msg.variants) : null,
-          msg.activeVariant || 0
+          msg.activeVariant ?? 0
         );
       }
     });

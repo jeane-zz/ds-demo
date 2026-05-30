@@ -22,7 +22,9 @@ db.exec(`
     createdAt INTEGER NOT NULL,
     updatedAt INTEGER NOT NULL,
     pinned INTEGER DEFAULT 0,
-    summary TEXT
+    summary TEXT,
+    titleGenerated INTEGER DEFAULT 0,
+    compressedUntil INTEGER DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS messages (
@@ -56,5 +58,18 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_documents_category ON documents(category);
   CREATE INDEX IF NOT EXISTS idx_documents_session ON documents(relatedSessionId);
 `);
+
+const sessionColumns = db
+  .prepare('PRAGMA table_info(sessions)')
+  .all() as Array<{ name: string }>;
+const sessionColumnNames = new Set(sessionColumns.map((column) => column.name));
+
+if (!sessionColumnNames.has('titleGenerated')) {
+  db.exec('ALTER TABLE sessions ADD COLUMN titleGenerated INTEGER DEFAULT 0');
+}
+
+if (!sessionColumnNames.has('compressedUntil')) {
+  db.exec('ALTER TABLE sessions ADD COLUMN compressedUntil INTEGER DEFAULT 0');
+}
 
 export default db;

@@ -5,6 +5,8 @@ export interface Session {
   updatedAt: number;
   pinned: boolean;
   summary?: string;
+  titleGenerated?: boolean;
+  compressedUntil?: number;
 }
 
 export interface Message {
