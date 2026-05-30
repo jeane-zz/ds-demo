@@ -1,12 +1,14 @@
 import OpenAI from "openai";
-
-const client = new OpenAI({
-  apiKey: process.env.DEEPSEEK_API_KEY,
-  baseURL: "https://api.deepseek.com",
-});
+import { getRequiredEnv, MissingEnvError } from "@/app/lib/env";
 
 export async function POST(req: Request) {
   try {
+    const apiKey = getRequiredEnv("DEEPSEEK_API_KEY");
+    const client = new OpenAI({
+      apiKey,
+      baseURL: "https://api.deepseek.com",
+    });
+
     const { messages } = await req.json();
     const completion = await client.chat.completions.create({
       model: "deepseek-chat",
@@ -14,7 +16,7 @@ export async function POST(req: Request) {
       stream: true,
     });
 
-        const encoder = new TextEncoder();
+    const encoder = new TextEncoder();
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -28,8 +30,15 @@ export async function POST(req: Request) {
 
     return new Response(stream);
   } catch (error) {
+    if (error instanceof MissingEnvError) {
+      console.error("Chat API config error:", error.message);
+      return Response.json(
+        { error: `Service unavailable: ${error.key} is not configured` },
+        { status: 503 }
+      );
+    }
     console.error("Chat API error:", error);
-    return Response.json({ error: "chat err" });
+    return Response.json({ error: "Failed to process chat request" }, { status: 500 });
   }
 }
 

@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createOpenAI } from '@ai-sdk/openai';
 import { generateText } from 'ai';
-
-const deepseek = createOpenAI({
-  apiKey: process.env.DEEPSEEK_API_KEY,
-  baseURL: 'https://api.deepseek.com',
-});
+import { getRequiredEnv, MissingEnvError } from '@/app/lib/env';
 
 export async function POST(request: NextRequest) {
   try {
+    const apiKey = getRequiredEnv('DEEPSEEK_API_KEY');
+    const deepseek = createOpenAI({
+      apiKey,
+      baseURL: 'https://api.deepseek.com',
+    });
+
     const { messages } = await request.json();
 
     if (!messages || !Array.isArray(messages)) {
@@ -68,6 +70,13 @@ ${conversationText}
 
     return NextResponse.json(extracted);
   } catch (error) {
+    if (error instanceof MissingEnvError) {
+      console.error('Extract document config error:', error.message);
+      return NextResponse.json(
+        { error: `Service unavailable: ${error.key} is not configured` },
+        { status: 503 }
+      );
+    }
     console.error('Extract document error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to extract document' },

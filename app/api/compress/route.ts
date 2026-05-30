@@ -1,9 +1,5 @@
 import OpenAI from "openai";
-
-const client = new OpenAI({
-  apiKey: process.env.DEEPSEEK_API_KEY,
-  baseURL: "https://api.deepseek.com",
-});
+import { getRequiredEnv, MissingEnvError } from "@/app/lib/env";
 
 const SYSTEM_PROMPT =
   "你是一个对话摘要助手。请将下面的对话历史压缩成结构化摘要，要求：\n" +
@@ -19,6 +15,12 @@ interface CompressMessage {
 
 export async function POST(req: Request) {
   try {
+    const apiKey = getRequiredEnv("DEEPSEEK_API_KEY");
+    const client = new OpenAI({
+      apiKey,
+      baseURL: "https://api.deepseek.com",
+    });
+
     const { messages, previousSummary } = (await req.json()) as {
       messages: CompressMessage[];
       previousSummary?: string;
@@ -28,7 +30,6 @@ export async function POST(req: Request) {
       return Response.json({ error: "messages required" }, { status: 400 });
     }
 
-    // 把对话历史拼成一段纯文本，避免占用过多 role 槽
     const transcript = messages
       .filter((m) => m.role === "user" || m.role === "assistant")
       .map((m) => `【${m.role === "user" ? "用户" : "助手"}】${m.content}`)
@@ -55,7 +56,14 @@ export async function POST(req: Request) {
 
     return Response.json({ summary });
   } catch (error) {
+    if (error instanceof MissingEnvError) {
+      console.error("Compress API config error:", error.message);
+      return Response.json(
+        { error: `Service unavailable: ${error.key} is not configured` },
+        { status: 503 }
+      );
+    }
     console.error("Compress API error:", error);
-    return Response.json({ error: "compress err" }, { status: 500 });
+    return Response.json({ error: "Failed to compress conversation" }, { status: 500 });
   }
 }
