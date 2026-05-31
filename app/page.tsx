@@ -107,7 +107,6 @@ export default function Home() {
     });
   }, [activeId, useVirtual]);
 
-  console.log('page render ---- ')
   return (
     <div className={styles.container}>
       {/* 顶部导航 */}
