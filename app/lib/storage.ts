@@ -89,6 +89,18 @@ class StorageAdapter {
     });
     if (!response.ok) throw new Error('Failed to bulk create messages');
   }
+
+  async bulkReplaceMessages(sessionId: string, messages: Message[]): Promise<void> {
+    const response = await fetch('/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'bulkReplaceMessages',
+        data: { sessionId, messages },
+      }),
+    });
+    if (!response.ok) throw new Error('Failed to bulk replace messages');
+  }
 }
 
 export const storage = new StorageAdapter();
