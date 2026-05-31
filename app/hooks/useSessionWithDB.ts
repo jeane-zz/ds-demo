@@ -275,13 +275,22 @@ export function useSessionWithDB() {
     }
   }, []);
 
-  const send = useCallback(
-    async (userMessage: string) => {
-      // 实现发送逻辑（简化版，完整实现需要复制原 useSession 的 streamAssistant 逻辑）
-      console.log('Send:', userMessage);
-    },
-    [activeId, messages]
-  );
+  const send = useCallback(async (userMessage: string) => {
+    const sessionId = activeIdRef.current;
+    if (!sessionId) return;
+
+    const userMsg = createMessage(sessionId, "user", userMessage);
+    const assistantMsg = createMessage(sessionId, "assistant", "", 1);
+    const nextMessages = [...messagesRef.current, userMsg, assistantMsg];
+
+    try {
+      setMessages(nextMessages);
+      await storage.bulkCreateMessages([userMsg, assistantMsg]);
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      setMessages(messagesRef.current);
+    }
+  }, []);
 
   const stop = useCallback(() => {
     controllerRef.current?.abort();
