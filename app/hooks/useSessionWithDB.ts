@@ -330,52 +330,12 @@ export function useSessionWithDB() {
         }
 
         try {
-          const response = await fetch("/api/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              messages: toChatMessages([...previousMessages, userMsg]),
-            }),
-            signal: controller.signal,
-          });
-
-          if (!response.ok || !response.body) {
-            throw new Error(`Chat request failed: ${response.status}`);
-          }
-
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-          let assistantText = "";
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            assistantText += decoder.decode(value, { stream: true });
-            setMessages((current) =>
-              current.map((message) =>
-                message.id === assistantMsg.id
-                  ? { ...message, content: assistantText }
-                  : message
-              )
-            );
-            scrollToBottom();
-          }
-
-          const tail = decoder.decode();
-          if (tail) {
-            assistantText += tail;
-            setMessages((current) =>
-              current.map((message) =>
-                message.id === assistantMsg.id
-                  ? { ...message, content: assistantText }
-                  : message
-              )
-            );
-          }
-
+          const assistantText = await streamAssistant(
+            assistantMsg.id,
+            [...previousMessages, userMsg],
+            controller.signal
+          );
           await storage.updateMessage(assistantMsg.id, { content: assistantText });
-          scrollToBottomSmooth();
         } catch (error) {
           if (!controller.signal.aborted) {
             console.error('Failed to stream assistant response:', error);
@@ -389,6 +349,9 @@ export function useSessionWithDB() {
       setStreamingIndex(null);
       setMessages(messagesRef.current);
     }
+    // streamAssistant 仅闭包 refs 与稳定的 setState,其标识变化不影响行为;
+    // 列入依赖会让 send 每次渲染都变,破坏 InputArea 的 props 稳定性。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const stop = useCallback(() => {
@@ -399,11 +362,12 @@ export function useSessionWithDB() {
   // 向 /api/chat 发请求 + rAF 节流流式写入指定 assistant 消息(按 id 定位)。
   // send 与 regenerate 共用此路径。调用方负责事先把空占位 assistant 放进 messages,
   // 并在结束后做持久化。返回最终拼接好的 assistant 文本。
-  const streamAssistant = async (
+  // 用函数声明而非 const,使其提升至 hook 作用域顶部,供上方的 send 引用。
+  async function streamAssistant(
     targetId: string,
     msgsForApi: Message[],
     signal: AbortSignal
-  ): Promise<string> => {
+  ): Promise<string> {
     const sessionId = activeIdRef.current;
     const currentSummary = sessionsRef.current.find(
       (s) => s.id === sessionId
@@ -570,7 +534,7 @@ export function useSessionWithDB() {
 
     scrollToBottomSmooth();
     return assistantText;
-  };
+  }
 
   // 重新生成最后一条 assistant 回复:把当前 content 收纳进 variants,新增空占位
   // 作为新版本并激活,流式写完后把最终文本写回 variants[activeVariant] 并持久化。
