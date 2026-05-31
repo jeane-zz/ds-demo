@@ -292,11 +292,36 @@ export function useSessionWithDB() {
     const nextMessages = [...previousMessages, userMsg, assistantMsg];
     const assistantVisibleIndex =
       nextMessages.filter((m) => m.role !== "system").length - 1;
+    const currentSession = sessionsRef.current.find((s) => s.id === sessionId);
+    const updatedAt = Date.now();
+    const nextTitle =
+      currentSession && !currentSession.titleGenerated
+        ? extractTitle(nextMessages)
+        : currentSession?.title;
 
     try {
       setMessages(nextMessages);
       setStreamingIndex(assistantVisibleIndex);
+      if (currentSession) {
+        setSessions((current) =>
+          sortSessions(
+            current.map((session) =>
+              session.id === sessionId
+                ? {
+                    ...session,
+                    title: nextTitle ?? session.title,
+                    updatedAt,
+                  }
+                : session
+            )
+          )
+        );
+      }
       await storage.bulkCreateMessages([userMsg, assistantMsg]);
+      await storage.updateSession(sessionId, {
+        ...(nextTitle ? { title: nextTitle } : {}),
+        updatedAt,
+      });
 
       await queueRef.current.run(async () => {
         if (controller.signal.aborted) {
