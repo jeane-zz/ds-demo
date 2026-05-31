@@ -3,21 +3,34 @@
 import { useState, useEffect } from 'react';
 import styles from './test-db.module.css';
 
+interface TestSession {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  pinned: boolean;
+}
+
+function createTestSession(): TestSession {
+  const now = Date.now();
+  return {
+    id: `test-${now}`,
+    title: 'Test Session',
+    createdAt: now,
+    updatedAt: now,
+    pinned: false,
+  };
+}
+
 export default function TestDBPage() {
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<TestSession[]>([]);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
 
   const testCreate = async () => {
     try {
       setStatus('Creating test session...');
-      const testSession = {
-        id: `test-${Date.now()}`,
-        title: 'Test Session',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        pinned: false,
-      };
+      const testSession = createTestSession();
 
       const res = await fetch('/api/sessions', {
         method: 'POST',

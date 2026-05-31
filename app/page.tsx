@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo, useCallback, memo } from "react";
+import Link from "next/link";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import MessageItem from "./components/MessageItem";
 import InputArea from "./components/InputArea";
@@ -111,12 +112,12 @@ export default function Home() {
       {/* 顶部导航 */}
       <header className={styles.header}>
         <nav className={styles.nav}>
-          <a href="/" className={styles.navItem + ' ' + styles.navItemActive}>
+          <Link href="/" className={styles.navItem + ' ' + styles.navItemActive}>
             💬 对话
-          </a>
-          <a href="/docs" className={styles.navItem}>
+          </Link>
+          <Link href="/docs" className={styles.navItem}>
             📚 文档
-          </a>
+          </Link>
         </nav>
         <ThemeToggle />
       </header>

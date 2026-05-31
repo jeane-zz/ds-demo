@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
@@ -26,22 +27,22 @@ export default function DocsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const loadDocuments = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch('/api/documents');
+        if (!res.ok) throw new Error('Failed to load documents');
+        const data = await res.json();
+        setDocuments(data);
+      } catch (error) {
+        console.error('Failed to load documents:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     loadDocuments();
   }, []);
-
-  const loadDocuments = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch('/api/documents');
-      if (!res.ok) throw new Error('Failed to load documents');
-      const data = await res.json();
-      setDocuments(data);
-    } catch (error) {
-      console.error('Failed to load documents:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const deleteDocument = async (id: string) => {
     if (!confirm('确定要删除这个文档吗？')) return;
@@ -88,12 +89,12 @@ export default function DocsPage() {
       {/* 顶部导航 */}
       <header className={styles.header}>
         <nav className={styles.nav}>
-          <a href="/" className={styles.navItem}>
+          <Link href="/" className={styles.navItem}>
             💬 对话
-          </a>
-          <a href="/docs" className={styles.navItem + ' ' + styles.navItemActive}>
+          </Link>
+          <Link href="/docs" className={styles.navItem + ' ' + styles.navItemActive}>
             📚 文档
-          </a>
+          </Link>
         </nav>
       </header>
 
@@ -111,7 +112,7 @@ export default function DocsPage() {
         ) : documents.length === 0 ? (
           <div className={styles.empty}>
             <p>还没有文档</p>
-            <p className={styles.hint}>在对话中点击"保存为文档"来创建</p>
+            <p className={styles.hint}>在对话中点击&quot;保存为文档&quot;来创建</p>
           </div>
         ) : (
           <div className={styles.categories}>
