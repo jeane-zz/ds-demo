@@ -22,6 +22,7 @@ export default function Home() {
     isMounted,
     bottomRef,
     streamingIndex,
+    migration,
     send,
     stop,
     regenerate,
@@ -121,6 +122,20 @@ export default function Home() {
         </nav>
         <ThemeToggle />
       </header>
+
+      {migration.status === "migrating" && (
+        <div className={styles.migrationBanner}>正在迁移历史会话到本地数据库…</div>
+      )}
+      {migration.status === "done" && migration.count > 0 && (
+        <div className={styles.migrationBanner}>
+          已迁移 {migration.count} 个历史会话到本地数据库
+        </div>
+      )}
+      {migration.status === "error" && (
+        <div className={`${styles.migrationBanner} ${styles.migrationBannerError}`}>
+          历史会话迁移失败：{migration.error}
+        </div>
+      )}
 
       <div className={styles.layout}>
       {/* 侧边栏 */}

@@ -238,3 +238,16 @@
 .virtualItem:last-child {
   padding-bottom: 16px;
 }
+
+.migrationBanner {
+  padding: 8px 24px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.migrationBannerError {
+  color: #b91c1c;
+}
