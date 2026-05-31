@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -26,7 +26,10 @@ export default function DocsPage() {
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const [editingDoc, setEditingDoc] = useState<Document | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Document[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
   const [loading, setLoading] = useState(true);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadDocuments = useCallback(async () => {
     try {
@@ -80,20 +83,47 @@ export default function DocsPage() {
     }
   };
 
-  const filteredDocs = documents.filter((doc) =>
-    doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    doc.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    doc.tags?.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  // 服务端全文检索：输入后防抖 300ms 调 /api/documents?q=，覆盖正文。
+  // 查询为空时回落到全量 documents，不发请求。
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
 
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setSearchResults(null);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/documents?q=${encodeURIComponent(trimmed)}`);
+        if (!res.ok) throw new Error('搜索失败');
+        const data = (await res.json()) as Document[];
+        setSearchResults(data);
+      } catch (error) {
+        console.error('Failed to search documents:', error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+  };
+
+  // 有查询时用服务端结果，否则用全量列表。
+  const displayDocs = searchQuery.trim() ? searchResults ?? [] : documents;
+
+  // 分类分组始终基于全量 documents，避免搜索时分类列表塌缩。
   const categories = [...new Set(documents.map((d) => d.category).filter(Boolean))];
 
   const groupedDocs = categories.reduce((acc, cat) => {
-    acc[cat!] = filteredDocs.filter((d) => d.category === cat);
+    acc[cat!] = displayDocs.filter((d) => d.category === cat);
     return acc;
   }, {} as Record<string, Document[]>);
 
-  const uncategorized = filteredDocs.filter((d) => !d.category);
+  const uncategorized = displayDocs.filter((d) => !d.category);
   if (uncategorized.length > 0) {
     groupedDocs['未分类'] = uncategorized;
   }
@@ -116,9 +146,9 @@ export default function DocsPage() {
       <aside className={styles.sidebar}>
         <input
           className={styles.searchInput}
-          placeholder="搜索文档..."
+          placeholder="搜索文档（含正文）..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
         />
 
         {loading ? (
@@ -127,6 +157,13 @@ export default function DocsPage() {
           <div className={styles.empty}>
             <p>还没有文档</p>
             <p className={styles.hint}>在对话中点击&quot;保存为文档&quot;来创建</p>
+          </div>
+        ) : isSearching ? (
+          <div className={styles.loading}>搜索中...</div>
+        ) : searchQuery.trim() && displayDocs.length === 0 ? (
+          <div className={styles.empty}>
+            <p>没有匹配的文档</p>
+            <p className={styles.hint}>换个关键词试试</p>
           </div>
         ) : (
           <div className={styles.categories}>
