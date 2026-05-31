@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+import { SaveDocumentModal } from '../components/SaveDocumentModal';
 import styles from './docs.module.css';
 
 interface Document {
@@ -23,26 +24,30 @@ interface Document {
 export default function DocsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
+  const [editingDoc, setEditingDoc] = useState<Document | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const loadDocuments = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch('/api/documents');
-        if (!res.ok) throw new Error('Failed to load documents');
-        const data = await res.json();
-        setDocuments(data);
-      } catch (error) {
-        console.error('Failed to load documents:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadDocuments();
+  const loadDocuments = useCallback(async () => {
+    try {
+      const res = await fetch('/api/documents');
+      if (!res.ok) throw new Error('Failed to load documents');
+      const data = await res.json();
+      setDocuments(data);
+      return data as Document[];
+    } catch (error) {
+      console.error('Failed to load documents:', error);
+      return null;
+    }
   }, []);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      await loadDocuments();
+      setLoading(false);
+    })();
+  }, [loadDocuments]);
 
   const deleteDocument = async (id: string) => {
     if (!confirm('确定要删除这个文档吗？')) return;
@@ -63,6 +68,15 @@ export default function DocsPage() {
     } catch (error) {
       console.error('Failed to delete document:', error);
       alert('删除失败');
+    }
+  };
+
+  const handleEdited = async () => {
+    const editedId = editingDoc?.id;
+    const data = await loadDocuments();
+    if (data && editedId) {
+      const updated = data.find((d) => d.id === editedId);
+      if (updated) setSelectedDoc(updated);
     }
   };
 
@@ -152,12 +166,20 @@ export default function DocsPage() {
           <article className={styles.document}>
             <div className={styles.docHeader}>
               <h1>{selectedDoc.title}</h1>
-              <button
-                className={styles.deleteBtn}
-                onClick={() => deleteDocument(selectedDoc.id)}
-              >
-                🗑️ 删除
-              </button>
+              <div className={styles.docActions}>
+                <button
+                  className={styles.editBtn}
+                  onClick={() => setEditingDoc(selectedDoc)}
+                >
+                  ✏️ 编辑
+                </button>
+                <button
+                  className={styles.deleteBtn}
+                  onClick={() => deleteDocument(selectedDoc.id)}
+                >
+                  🗑️ 删除
+                </button>
+              </div>
             </div>
 
             <div className={styles.meta}>
@@ -221,6 +243,14 @@ export default function DocsPage() {
         )}
       </main>
       </div>
+
+      {editingDoc && (
+        <SaveDocumentModal
+          document={editingDoc}
+          onClose={() => setEditingDoc(null)}
+          onSaved={handleEdited}
+        />
+      )}
     </div>
   );
 }

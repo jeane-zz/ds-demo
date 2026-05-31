@@ -3,29 +3,45 @@
 import { useState } from 'react';
 import styles from './SaveDocumentModal.module.css';
 
+interface EditableDocument {
+  id: string;
+  title: string;
+  category?: string;
+  tags?: string[];
+  problem?: string;
+  solution?: string;
+  code?: string;
+}
+
 interface SaveDocumentModalProps {
-  sessionId: string;
-  messages: Array<{ role: string; content: string }>;
+  /** 传入则进入编辑模式，否则为新建模式 */
+  document?: EditableDocument;
+  /** 新建模式下作为 relatedSessionId，编辑模式可省略 */
+  sessionId?: string;
+  /** 新建模式下供 AI 提取使用，编辑模式可省略 */
+  messages?: Array<{ role: string; content: string }>;
   onClose: () => void;
   onSaved?: () => void;
 }
 
 export function SaveDocumentModal({
+  document,
   sessionId,
   messages,
   onClose,
   onSaved,
 }: SaveDocumentModalProps) {
+  const isEdit = !!document;
   const [loading, setLoading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
-    title: '',
-    category: '',
-    tags: '',
-    problem: '',
-    solution: '',
-    code: '',
+    title: document?.title ?? '',
+    category: document?.category ?? '',
+    tags: document?.tags?.join(', ') ?? '',
+    problem: document?.problem ?? '',
+    solution: document?.solution ?? '',
+    code: document?.code ?? '',
   });
 
   const handleExtract = async () => {
@@ -67,26 +83,48 @@ export function SaveDocumentModal({
     setError('');
 
     try {
-      const doc = {
-        id: `doc-${Date.now()}`,
-        title: formData.title.trim(),
-        category: formData.category.trim() || undefined,
-        tags: formData.tags
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean),
-        problem: formData.problem.trim() || undefined,
-        solution: formData.solution.trim() || undefined,
-        code: formData.code.trim() || undefined,
-        relatedSessionId: sessionId,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
+      const tags = formData.tags
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+      let body: string;
+      if (isEdit) {
+        body = JSON.stringify({
+          action: 'update',
+          data: {
+            id: document!.id,
+            updates: {
+              title: formData.title.trim(),
+              category: formData.category.trim() || undefined,
+              tags,
+              problem: formData.problem.trim() || undefined,
+              solution: formData.solution.trim() || undefined,
+              code: formData.code.trim() || undefined,
+              updatedAt: Date.now(),
+            },
+          },
+        });
+      } else {
+        const doc = {
+          id: `doc-${Date.now()}`,
+          title: formData.title.trim(),
+          category: formData.category.trim() || undefined,
+          tags,
+          problem: formData.problem.trim() || undefined,
+          solution: formData.solution.trim() || undefined,
+          code: formData.code.trim() || undefined,
+          relatedSessionId: sessionId,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        body = JSON.stringify({ action: 'create', data: doc });
+      }
 
       const res = await fetch('/api/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create', data: doc }),
+        body,
       });
 
       if (!res.ok) throw new Error('保存失败');
@@ -104,7 +142,7 @@ export function SaveDocumentModal({
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
-          <h2>📝 保存为文档</h2>
+          <h2>{isEdit ? '✏️ 编辑文档' : '📝 保存为文档'}</h2>
           <button className={styles.closeBtn} onClick={onClose}>
             ✕
           </button>
@@ -112,15 +150,17 @@ export function SaveDocumentModal({
 
         {error && <div className={styles.error}>{error}</div>}
 
-        <div className={styles.actions}>
-          <button
-            className={styles.extractBtn}
-            onClick={handleExtract}
-            disabled={extracting}
-          >
-            {extracting ? '🤖 AI 提取中...' : '🤖 AI 自动提取'}
-          </button>
-        </div>
+        {!isEdit && (
+          <div className={styles.actions}>
+            <button
+              className={styles.extractBtn}
+              onClick={handleExtract}
+              disabled={extracting}
+            >
+              {extracting ? '🤖 AI 提取中...' : '🤖 AI 自动提取'}
+            </button>
+          </div>
+        )}
 
         <div className={styles.form}>
           <div className={styles.field}>
@@ -200,7 +240,7 @@ export function SaveDocumentModal({
             onClick={handleSave}
             disabled={loading}
           >
-            {loading ? '保存中...' : '保存文档'}
+            {loading ? '保存中...' : isEdit ? '保存修改' : '保存文档'}
           </button>
         </div>
       </div>
