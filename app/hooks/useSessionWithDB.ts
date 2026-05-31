@@ -3,6 +3,14 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { storage, type Session, type Message } from "../lib/storage";
 import { TaskQueue } from "../lib/taskQueue";
+import { migrateFromLocalStorage, checkMigrationStatus } from "../lib/migrate";
+
+/** 旧版 localStorage 会话迁移到 SQLite 的进度状态 */
+export type MigrationState =
+  | { status: "idle" }
+  | { status: "migrating" }
+  | { status: "done"; count: number }
+  | { status: "error"; error: string };
 
 const SYSTEM_PROMPT = `你是一名经验丰富的全栈开发助手，擅长前端（React、Vue、TypeScript、CSS）、后端（Node.js、Python、数据库设计）、DevOps 与系统架构。你的目标是帮助用户高效地解决开发问题。
 
@@ -37,6 +45,7 @@ export function useSessionWithDB() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isMounted, setIsMounted] = useState(false);
   const [streamingIndex, setStreamingIndex] = useState<number | null>(null);
+  const [migration, setMigration] = useState<MigrationState>({ status: "idle" });
 
   const controllerRef = useRef<AbortController | null>(null);
   const queueRef = useRef<TaskQueue>(null as unknown as TaskQueue);
@@ -46,10 +55,26 @@ export function useSessionWithDB() {
   const activeSession = sessions.find((s) => s.id === activeId);
   const summary = activeSession?.summary;
 
-  // 初始化：从数据库加载会话
+  // 初始化：迁移旧数据 → 从数据库加载会话
   useEffect(() => {
     const init = async () => {
       try {
+        // 首次进入时，把遗留的 localStorage 会话迁移到 SQLite
+        if (!checkMigrationStatus()) {
+          setMigration({ status: "migrating" });
+          const result = await migrateFromLocalStorage();
+          if (result.success) {
+            setMigration({ status: "done", count: result.count });
+          } else {
+            // 迁移失败不阻断使用，仅记录并提示
+            setMigration({
+              status: "error",
+              error: result.error ?? "Unknown error",
+            });
+            console.error("Legacy migration failed:", result.error);
+          }
+        }
+
         const allSessions = await storage.getAllSessions();
         if (allSessions.length > 0) {
           setSessions(allSessions);
@@ -236,6 +261,7 @@ export function useSessionWithDB() {
     isMounted,
     bottomRef,
     streamingIndex,
+    migration,
     send,
     stop,
     regenerate,
