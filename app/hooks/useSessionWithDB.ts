@@ -32,6 +32,10 @@ function uid(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
+function toChatMessages(messages: Message[]) {
+  return messages.map((m) => ({ role: m.role, content: m.content }));
+}
+
 function extractTitle(messages: Message[]): string {
   const firstUser = messages.find((m) => m.role === "user");
   if (!firstUser) return DEFAULT_TITLE;
@@ -279,15 +283,85 @@ export function useSessionWithDB() {
     const sessionId = activeIdRef.current;
     if (!sessionId) return;
 
+    const controller = new AbortController();
+    controllerRef.current = controller;
+
     const userMsg = createMessage(sessionId, "user", userMessage);
     const assistantMsg = createMessage(sessionId, "assistant", "", 1);
-    const nextMessages = [...messagesRef.current, userMsg, assistantMsg];
+    const previousMessages = messagesRef.current;
+    const nextMessages = [...previousMessages, userMsg, assistantMsg];
+    const assistantVisibleIndex =
+      nextMessages.filter((m) => m.role !== "system").length - 1;
 
     try {
       setMessages(nextMessages);
+      setStreamingIndex(assistantVisibleIndex);
       await storage.bulkCreateMessages([userMsg, assistantMsg]);
+
+      await queueRef.current.run(async () => {
+        if (controller.signal.aborted) {
+          setStreamingIndex(null);
+          return;
+        }
+
+        try {
+          const response = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              messages: toChatMessages([...previousMessages, userMsg]),
+            }),
+            signal: controller.signal,
+          });
+
+          if (!response.ok || !response.body) {
+            throw new Error(`Chat request failed: ${response.status}`);
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let assistantText = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            assistantText += decoder.decode(value, { stream: true });
+            setMessages((current) =>
+              current.map((message) =>
+                message.id === assistantMsg.id
+                  ? { ...message, content: assistantText }
+                  : message
+              )
+            );
+            scrollToBottom();
+          }
+
+          const tail = decoder.decode();
+          if (tail) {
+            assistantText += tail;
+            setMessages((current) =>
+              current.map((message) =>
+                message.id === assistantMsg.id
+                  ? { ...message, content: assistantText }
+                  : message
+              )
+            );
+          }
+
+          await storage.updateMessage(assistantMsg.id, { content: assistantText });
+          scrollToBottomSmooth();
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            console.error('Failed to stream assistant response:', error);
+          }
+        } finally {
+          setStreamingIndex(null);
+        }
+      });
     } catch (error) {
       console.error('Failed to send message:', error);
+      setStreamingIndex(null);
       setMessages(messagesRef.current);
     }
   }, []);
