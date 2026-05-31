@@ -294,6 +294,11 @@ export function useSessionWithDB() {
       nextMessages.filter((m) => m.role !== "system").length - 1;
     const currentSession = sessionsRef.current.find((s) => s.id === sessionId);
     const updatedAt = Date.now();
+    // 首轮:除 system 外无历史且标题仍为默认值 → stream 结束后用 LLM 生成标题
+    const isFirstTurn =
+      !!currentSession &&
+      previousMessages.filter((m) => m.role !== "system").length === 0 &&
+      currentSession.title === DEFAULT_TITLE;
     const nextTitle =
       currentSession && !currentSession.titleGenerated
         ? extractTitle(nextMessages)
@@ -336,6 +341,9 @@ export function useSessionWithDB() {
             controller.signal
           );
           await storage.updateMessage(assistantMsg.id, { content: assistantText });
+          if (isFirstTurn && assistantText.trim()) {
+            generateTitle(sessionId, userMessage, assistantText);
+          }
         } catch (error) {
           if (!controller.signal.aborted) {
             console.error('Failed to stream assistant response:', error);
@@ -534,6 +542,45 @@ export function useSessionWithDB() {
 
     scrollToBottomSmooth();
     return assistantText;
+  }
+
+  // 首轮结束后调 /api/title 用 LLM 生成标题并写回会话(本地 state + 持久化)。
+  // 飞行途中用户若已手动重命名(titleGenerated=true)则放弃覆盖。
+  async function generateTitle(
+    sessionId: string,
+    userText: string,
+    assistantText: string
+  ): Promise<void> {
+    try {
+      const res = await fetch("/api/title", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userMessage: userText,
+          assistantMessage: assistantText,
+        }),
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { title?: string };
+      const title = data.title?.trim();
+      if (!title) return;
+
+      const current = sessionsRef.current.find((s) => s.id === sessionId);
+      if (!current || current.titleGenerated) return;
+
+      await storage.updateSession(sessionId, { title, titleGenerated: true });
+      setSessions((prev) =>
+        sortSessions(
+          prev.map((s) =>
+            s.id === sessionId && !s.titleGenerated
+              ? { ...s, title, titleGenerated: true }
+              : s
+          )
+        )
+      );
+    } catch (error) {
+      console.error("Generate title error:", error);
+    }
   }
 
   // 重新生成最后一条 assistant 回复:把当前 content 收纳进 variants,新增空占位
