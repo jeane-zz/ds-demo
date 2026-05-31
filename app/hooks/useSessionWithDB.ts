@@ -475,10 +475,18 @@ export function useSessionWithDB() {
     ];
     // ────────────────────────────────────────────────────────────────
 
+    setMessages((current) =>
+      current.map((message) =>
+        message.id === targetId
+          ? { ...message, content: "正在检索本地知识..." }
+          : message
+      )
+    );
+
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: finalMessages }),
+      body: JSON.stringify({ messages: finalMessages, sessionId }),
       signal,
     });
 
