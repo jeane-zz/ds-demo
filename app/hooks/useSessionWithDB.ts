@@ -39,6 +39,35 @@ function extractTitle(messages: Message[]): string {
   return title.length > 20 ? title.slice(0, 20) + "…" : title;
 }
 
+function sortSessions(list: Session[]): Session[] {
+  return [...list].sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+    return b.updatedAt - a.updatedAt;
+  });
+}
+
+function createDefaultSession(): Session {
+  const now = Date.now();
+  return {
+    id: uid(),
+    title: DEFAULT_TITLE,
+    pinned: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function createSystemMessage(sessionId: string): Message {
+  return {
+    id: `${sessionId}-0`,
+    sessionId,
+    role: "system",
+    content: SYSTEM_PROMPT,
+    createdAt: Date.now(),
+  };
+}
+
 export function useSessionWithDB() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeId, setActiveId] = useState<string>("");
@@ -77,28 +106,17 @@ export function useSessionWithDB() {
 
         const allSessions = await storage.getAllSessions();
         if (allSessions.length > 0) {
-          setSessions(allSessions);
-          setActiveId(allSessions[0].id);
-          const msgs = await storage.getMessages(allSessions[0].id);
+          const sorted = sortSessions(allSessions);
+          setSessions(sorted);
+          setActiveId(sorted[0].id);
+          const msgs = await storage.getMessages(sorted[0].id);
           setMessages(msgs);
         } else {
           // 创建默认会话
-          const defaultSession: Session = {
-            id: uid(),
-            title: DEFAULT_TITLE,
-            pinned: false,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          };
+          const defaultSession = createDefaultSession();
           await storage.createSession(defaultSession);
 
-          const systemMsg: Message = {
-            id: `${defaultSession.id}-0`,
-            sessionId: defaultSession.id,
-            role: "system",
-            content: SYSTEM_PROMPT,
-            createdAt: Date.now(),
-          };
+          const systemMsg = createSystemMessage(defaultSession.id);
           await storage.createMessage(systemMsg);
 
           setSessions([defaultSession]);
@@ -156,27 +174,15 @@ export function useSessionWithDB() {
   };
 
   const createSession = useCallback(async () => {
-    const newSession: Session = {
-      id: uid(),
-      title: DEFAULT_TITLE,
-      pinned: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
+    const newSession = createDefaultSession();
 
     try {
       await storage.createSession(newSession);
 
-      const systemMsg: Message = {
-        id: `${newSession.id}-0`,
-        sessionId: newSession.id,
-        role: "system",
-        content: SYSTEM_PROMPT,
-        createdAt: Date.now(),
-      };
+      const systemMsg = createSystemMessage(newSession.id);
       await storage.createMessage(systemMsg);
 
-      setSessions((prev) => [newSession, ...prev]);
+      setSessions((prev) => sortSessions([newSession, ...prev]));
       setActiveId(newSession.id);
       setMessages([systemMsg]);
     } catch (error) {
@@ -190,9 +196,14 @@ export function useSessionWithDB() {
 
   const renameSession = useCallback(async (id: string, title: string) => {
     try {
-      await storage.updateSession(id, { title, updatedAt: Date.now() });
+      const updatedAt = Date.now();
+      await storage.updateSession(id, { title, titleGenerated: true, updatedAt });
       setSessions((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, title, updatedAt: Date.now() } : s))
+        sortSessions(
+          prev.map((s) =>
+            s.id === id ? { ...s, title, titleGenerated: true, updatedAt } : s
+          )
+        )
       );
     } catch (error) {
       console.error('Failed to rename session:', error);
@@ -202,26 +213,42 @@ export function useSessionWithDB() {
   const deleteSession = useCallback(async (id: string) => {
     try {
       await storage.deleteSession(id);
-      setSessions((prev) => {
-        const filtered = prev.filter((s) => s.id !== id);
-        if (id === activeId && filtered.length > 0) {
-          setActiveId(filtered[0].id);
-        }
-        return filtered;
-      });
+      const filtered = sessions.filter((s) => s.id !== id);
+
+      if (filtered.length === 0) {
+        const defaultSession = createDefaultSession();
+        const systemMsg = createSystemMessage(defaultSession.id);
+        await storage.createSession(defaultSession);
+        await storage.createMessage(systemMsg);
+        setSessions([defaultSession]);
+        setActiveId(defaultSession.id);
+        setMessages([systemMsg]);
+        return;
+      }
+
+      const sorted = sortSessions(filtered);
+      setSessions(sorted);
+      if (id === activeId) {
+        setActiveId(sorted[0].id);
+      }
     } catch (error) {
       console.error('Failed to delete session:', error);
     }
-  }, [activeId]);
+  }, [activeId, sessions]);
 
   const togglePin = useCallback(async (id: string) => {
     const session = sessions.find((s) => s.id === id);
     if (!session) return;
 
     try {
-      await storage.updateSession(id, { pinned: !session.pinned });
+      const updatedAt = Date.now();
+      await storage.updateSession(id, { pinned: !session.pinned, updatedAt });
       setSessions((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, pinned: !s.pinned } : s))
+        sortSessions(
+          prev.map((s) =>
+            s.id === id ? { ...s, pinned: !s.pinned, updatedAt } : s
+          )
+        )
       );
     } catch (error) {
       console.error('Failed to toggle pin:', error);
