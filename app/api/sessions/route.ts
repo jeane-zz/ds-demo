@@ -65,6 +65,11 @@ export async function POST(request: NextRequest) {
         MessageDAO.bulkCreate(data.messages);
         return NextResponse.json({ success: true });
 
+      case 'bulkReplaceMessages':
+        MessageDAO.deleteBySessionId(data.sessionId);
+        MessageDAO.bulkCreate(data.messages);
+        return NextResponse.json({ success: true });
+
       case 'migrateLegacySessions': {
         const legacySessions = (data.sessions ?? []) as LegacySession[];
         let count = 0;
