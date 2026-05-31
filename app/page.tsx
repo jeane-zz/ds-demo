@@ -7,7 +7,7 @@ import MessageItem from "./components/MessageItem";
 import InputArea from "./components/InputArea";
 import ThemeToggle from "./components/ThemeToggle";
 import { MessageSearch } from "./components/MessageSearch";
-import { useSession } from "./hooks/useSession";
+import { useSessionWithDB } from "./hooks/useSessionWithDB";
 import styles from "./page.module.css";
 
 // 超过该条数后启用虚拟化渲染
@@ -32,7 +32,7 @@ export default function Home() {
     deleteSession,
     togglePin,
     compressContext,
-  } = useSession();
+  } = useSessionWithDB();
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
