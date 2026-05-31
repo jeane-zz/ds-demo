@@ -58,13 +58,18 @@ function createDefaultSession(): Session {
   };
 }
 
-function createSystemMessage(sessionId: string): Message {
+function createMessage(
+  sessionId: string,
+  role: Message["role"],
+  content: string,
+  offset = 0
+): Message {
   return {
-    id: `${sessionId}-0`,
+    id: `${sessionId}-${uid()}`,
     sessionId,
-    role: "system",
-    content: SYSTEM_PROMPT,
-    createdAt: Date.now(),
+    role,
+    content,
+    createdAt: Date.now() + offset,
   };
 }
 
@@ -131,7 +136,7 @@ export function useSessionWithDB() {
           const defaultSession = createDefaultSession();
           await storage.createSession(defaultSession);
 
-          const systemMsg = createSystemMessage(defaultSession.id);
+          const systemMsg = createMessage(defaultSession.id, "system", SYSTEM_PROMPT);
           await storage.createMessage(systemMsg);
 
           setSessions([defaultSession]);
@@ -194,7 +199,7 @@ export function useSessionWithDB() {
     try {
       await storage.createSession(newSession);
 
-      const systemMsg = createSystemMessage(newSession.id);
+      const systemMsg = createMessage(newSession.id, "system", SYSTEM_PROMPT);
       await storage.createMessage(systemMsg);
 
       setSessions((prev) => sortSessions([newSession, ...prev]));
@@ -232,7 +237,7 @@ export function useSessionWithDB() {
 
       if (filtered.length === 0) {
         const defaultSession = createDefaultSession();
-        const systemMsg = createSystemMessage(defaultSession.id);
+        const systemMsg = createMessage(defaultSession.id, "system", SYSTEM_PROMPT);
         await storage.createSession(defaultSession);
         await storage.createMessage(systemMsg);
         setSessions([defaultSession]);
