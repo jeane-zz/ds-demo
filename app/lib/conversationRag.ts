@@ -7,7 +7,11 @@
  * 使用已在 IndexedDB 中缓存的嵌入向量，无需重复加载模型。
  */
 
-import type { Message } from "../hooks/useSession";
+/** 检索/返回只需 role + content 两字段,本地定义以解除对 useSession 的依赖 */
+interface Message {
+  role: string;
+  content: string;
+}
 
 /** RAG 检索配置 */
 export interface RagConfig {
