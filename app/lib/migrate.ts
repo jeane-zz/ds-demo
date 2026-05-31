@@ -1,5 +1,3 @@
-import { SessionDAO, MessageDAO } from './dao';
-
 const LEGACY_STORAGE_KEY = 'chat_sessions';
 const MIGRATION_STATUS_KEY = 'chat_sessions_migrated_to_sqlite';
 
@@ -20,7 +18,7 @@ interface LegacySession {
   compressedUntil?: number;
 }
 
-export function migrateFromLocalStorage(): { success: boolean; count: number; error?: string } {
+export async function migrateFromLocalStorage(): Promise<{ success: boolean; count: number; error?: string }> {
   try {
     if (typeof window === 'undefined') {
       return { success: false, count: 0, error: 'Not in browser environment' };
@@ -32,45 +30,26 @@ export function migrateFromLocalStorage(): { success: boolean; count: number; er
     }
 
     const legacySessions: LegacySession[] = JSON.parse(stored);
-    let migratedCount = 0;
+    const response = await fetch('/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'migrateLegacySessions',
+        data: { sessions: legacySessions },
+      }),
+    });
 
-    for (const legacy of legacySessions) {
-      const createdAt = legacy.createdAt ?? legacy.updatedAt;
-      const existingSession = SessionDAO.getById(legacy.id);
-      if (existingSession) {
-        continue;
-      }
-
-      SessionDAO.create({
-        id: legacy.id,
-        title: legacy.title,
-        createdAt,
-        updatedAt: legacy.updatedAt,
-        pinned: legacy.pinned || false,
-        summary: legacy.summary,
-        titleGenerated: legacy.titleGenerated,
-        compressedUntil: legacy.compressedUntil,
-      });
-
-      const messages = legacy.messages.map((msg, index) => ({
-        id: `${legacy.id}-${index}`,
-        sessionId: legacy.id,
-        role: msg.role,
-        content: msg.content,
-        createdAt: createdAt + index,
-        variants: msg.variants,
-        activeVariant: msg.activeVariant,
-      }));
-
-      MessageDAO.bulkCreate(messages);
-      migratedCount++;
+    if (!response.ok) {
+      return { success: false, count: 0, error: `HTTP ${response.status}` };
     }
 
-    if (migratedCount > 0) {
+    const result = (await response.json()) as { success: boolean; count: number; error?: string };
+
+    if (result.success) {
       localStorage.setItem(MIGRATION_STATUS_KEY, 'true');
     }
 
-    return { success: true, count: migratedCount };
+    return result;
   } catch (error) {
     console.error('Migration failed:', error);
     return {
