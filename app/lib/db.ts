@@ -59,6 +59,45 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_documents_session ON documents(relatedSessionId);
 `);
 
+// 文档全文检索：external-content FTS5 虚拟表，索引正文五个字段。
+// content='documents' 表示内容存于原表，FTS 只存倒排索引，避免数据冗余。
+// 注意：external-content 表的 count(*) 会代理回原表，不能用来判断索引是否已建，
+// 因此用 sqlite_master 判断本次启动是否首次创建该表，首次创建时 rebuild 回填存量。
+const ftsExisted = db
+  .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'documents_fts'`)
+  .get();
+
+db.exec(`
+  CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
+    title, tags, problem, solution, code,
+    content='documents',
+    content_rowid='rowid'
+  );
+
+  CREATE TRIGGER IF NOT EXISTS documents_ai AFTER INSERT ON documents BEGIN
+    INSERT INTO documents_fts(rowid, title, tags, problem, solution, code)
+    VALUES (new.rowid, new.title, new.tags, new.problem, new.solution, new.code);
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS documents_ad AFTER DELETE ON documents BEGIN
+    INSERT INTO documents_fts(documents_fts, rowid, title, tags, problem, solution, code)
+    VALUES ('delete', old.rowid, old.title, old.tags, old.problem, old.solution, old.code);
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS documents_au AFTER UPDATE ON documents BEGIN
+    INSERT INTO documents_fts(documents_fts, rowid, title, tags, problem, solution, code)
+    VALUES ('delete', old.rowid, old.title, old.tags, old.problem, old.solution, old.code);
+    INSERT INTO documents_fts(rowid, title, tags, problem, solution, code)
+    VALUES (new.rowid, new.title, new.tags, new.problem, new.solution, new.code);
+  END;
+`);
+
+// 首次创建 FTS 表时用 'rebuild' 从原表回填存量文档（老库升级场景）。
+// 之后由触发器增量维护，无需再 rebuild。
+if (!ftsExisted) {
+  db.exec(`INSERT INTO documents_fts(documents_fts) VALUES('rebuild');`);
+}
+
 const sessionColumns = db
   .prepare('PRAGMA table_info(sessions)')
   .all() as Array<{ name: string }>;
