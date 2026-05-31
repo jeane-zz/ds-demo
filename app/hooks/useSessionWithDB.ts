@@ -77,12 +77,27 @@ export function useSessionWithDB() {
   const [migration, setMigration] = useState<MigrationState>({ status: "idle" });
 
   const controllerRef = useRef<AbortController | null>(null);
+  const sessionsRef = useRef<Session[]>([]);
+  const messagesRef = useRef<Message[]>([]);
+  const activeIdRef = useRef("");
   const queueRef = useRef<TaskQueue>(null as unknown as TaskQueue);
   if (queueRef.current === null) queueRef.current = new TaskQueue();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const activeSession = sessions.find((s) => s.id === activeId);
   const summary = activeSession?.summary;
+
+  useEffect(() => {
+    sessionsRef.current = sessions;
+  }, [sessions]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    activeIdRef.current = activeId;
+  }, [activeId]);
 
   // 初始化：迁移旧数据 → 从数据库加载会话
   useEffect(() => {
@@ -213,7 +228,7 @@ export function useSessionWithDB() {
   const deleteSession = useCallback(async (id: string) => {
     try {
       await storage.deleteSession(id);
-      const filtered = sessions.filter((s) => s.id !== id);
+      const filtered = sessionsRef.current.filter((s) => s.id !== id);
 
       if (filtered.length === 0) {
         const defaultSession = createDefaultSession();
@@ -228,16 +243,16 @@ export function useSessionWithDB() {
 
       const sorted = sortSessions(filtered);
       setSessions(sorted);
-      if (id === activeId) {
+      if (id === activeIdRef.current) {
         setActiveId(sorted[0].id);
       }
     } catch (error) {
       console.error('Failed to delete session:', error);
     }
-  }, [activeId, sessions]);
+  }, []);
 
   const togglePin = useCallback(async (id: string) => {
-    const session = sessions.find((s) => s.id === id);
+    const session = sessionsRef.current.find((s) => s.id === id);
     if (!session) return;
 
     try {
@@ -253,7 +268,7 @@ export function useSessionWithDB() {
     } catch (error) {
       console.error('Failed to toggle pin:', error);
     }
-  }, [sessions]);
+  }, []);
 
   const send = useCallback(
     async (userMessage: string) => {
