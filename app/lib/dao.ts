@@ -350,4 +350,50 @@ export class DocumentDAO {
   static delete(id: string): void {
     db.prepare('DELETE FROM documents WHERE id = ?').run(id);
   }
+
+  /**
+   * 全文检索文档。基于 documents_fts（FTS5）匹配 title/tags/problem/solution/code，
+   * 按 bm25 相关度排序。用户输入按空白拆词，每词做前缀匹配并用双引号包裹以
+   * 转义 FTS5 特殊语法，多词之间隐式 AND。空查询返回 []。
+   */
+  static search(query: string): Document[] {
+    const terms = query
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((term) => `"${term.replace(/"/g, '""')}"*`);
+
+    if (terms.length === 0) return [];
+
+    const matchExpr = terms.join(' ');
+
+    const rows = db.prepare(`
+      SELECT d.id, d.title, d.category, d.tags, d.problem, d.solution, d.code, d.relatedSessionId, d.createdAt, d.updatedAt
+      FROM documents_fts f
+      JOIN documents d ON d.rowid = f.rowid
+      WHERE documents_fts MATCH ?
+      ORDER BY bm25(documents_fts)
+    `).all(matchExpr) as Array<{
+      id: string;
+      title: string;
+      category: string | null;
+      tags: string | null;
+      problem: string | null;
+      solution: string | null;
+      code: string | null;
+      relatedSessionId: string | null;
+      createdAt: number;
+      updatedAt: number;
+    }>;
+
+    return rows.map(row => ({
+      ...row,
+      category: row.category || undefined,
+      tags: row.tags ? JSON.parse(row.tags) : undefined,
+      problem: row.problem || undefined,
+      solution: row.solution || undefined,
+      code: row.code || undefined,
+      relatedSessionId: row.relatedSessionId || undefined,
+    }));
+  }
 }
