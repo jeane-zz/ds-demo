@@ -5,6 +5,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+    const q = searchParams.get('q');
 
     if (id) {
       const doc = DocumentDAO.getById(id);
@@ -12,6 +13,11 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Document not found' }, { status: 404 });
       }
       return NextResponse.json(doc);
+    }
+
+    if (q?.trim()) {
+      const results = DocumentDAO.search(q);
+      return NextResponse.json(results);
     }
 
     const documents = DocumentDAO.getAll();
