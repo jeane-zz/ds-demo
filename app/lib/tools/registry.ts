@@ -25,6 +25,15 @@ interface RegisteredTool {
 const MAX_SNIPPET_LENGTH = 900;
 const MAX_RESULTS = 5;
 
+export const toolUseInstruction =
+  "你可以按需调用本地工具来查询用户的本地知识。规则：\n" +
+  "1. 当用户询问保存过的开发问题、文档库、归档方案、历史解决方案、分类或标签时，优先调用 search_documents。\n" +
+  "2. 当用户询问当前会话之前讨论过什么、刚才说过什么、前文结论或本会话历史时，调用 search_conversation。\n" +
+  "3. 当用户询问上传文件内容、某个文件、文件中的代码或文件片段时，调用 search_uploaded_files。\n" +
+  "4. 如果当前消息上下文已经包含足够信息，可以直接回答，不要为了形式调用工具。\n" +
+  "5. 如果工具没有找到结果，应明确说明没有找到，不要编造本地资料。\n" +
+  "6. 工具结果只是本地检索片段，最终回答仍需结合用户问题进行总结。";
+
 function asRequiredString(args: JsonObject, key: string): string {
   const value = args[key];
   if (typeof value !== "string" || value.trim().length === 0) {
@@ -54,13 +63,14 @@ function safeJson(result: ToolResult): string {
 
 function serializeDocument(doc: Document) {
   return {
+    sourceType: "document",
     id: doc.id,
     title: doc.title,
     category: doc.category,
     tags: doc.tags ?? [],
-    problem: truncate(doc.problem, 500),
-    solution: truncate(doc.solution, 900),
-    code: truncate(doc.code, 700),
+    problemSnippet: truncate(doc.problem, 500),
+    solutionSnippet: truncate(doc.solution, 900),
+    codeSnippet: truncate(doc.code, 700),
     relatedSessionId: doc.relatedSessionId,
     updatedAt: doc.updatedAt,
   };
@@ -120,7 +130,7 @@ const registeredTools: Record<string, RegisteredTool> = {
       function: {
         name: "search_documents",
         description:
-          "Search the local saved development-problem document library when the user asks about archived solutions, notes, categories, tags, or previous documented fixes.",
+          "Search the local saved development-problem document library. Use this for archived fixes, saved notes, documented solutions, categories, tags, or previous problems the user explicitly saved as documents.",
         parameters: {
           type: "object",
           properties: {
@@ -139,7 +149,12 @@ const registeredTools: Record<string, RegisteredTool> = {
 
       return {
         ok: true,
-        message: docs.length > 0 ? "documents found" : "no matching documents",
+        message:
+          docs.length === 1
+            ? "1 document found"
+            : docs.length > 1
+              ? `${docs.length} documents found`
+              : "no matching documents",
         data: docs.map(serializeDocument),
       };
     },
@@ -151,7 +166,7 @@ const registeredTools: Record<string, RegisteredTool> = {
       function: {
         name: "search_conversation",
         description:
-          "Search the current local conversation history when the user asks what was discussed earlier in this session.",
+          "Search the current local conversation history. Use this when the user asks what was discussed earlier, asks about previous conclusions in this session, or refers to something said before.",
         parameters: {
           type: "object",
           properties: {
@@ -172,10 +187,16 @@ const registeredTools: Record<string, RegisteredTool> = {
 
       return {
         ok: true,
-        message: results.length > 0 ? "conversation messages found" : "no matching messages",
+        message:
+          results.length === 1
+            ? "1 conversation message found"
+            : results.length > 1
+              ? `${results.length} conversation messages found`
+              : "no matching conversation messages",
         data: results.map((message) => ({
+          sourceType: "conversation",
           role: message.role,
-          content: truncate(message.content),
+          contentSnippet: truncate(message.content),
           createdAt: message.createdAt,
         })),
       };
@@ -188,7 +209,7 @@ const registeredTools: Record<string, RegisteredTool> = {
       function: {
         name: "search_uploaded_files",
         description:
-          "Search uploaded file contents that were included in user messages in the current session.",
+          "Search uploaded file contents that were included in user messages in the current session. Use this when the user asks about an uploaded file, file content, code from a file, or a specific filename.",
         parameters: {
           type: "object",
           properties: {
@@ -215,14 +236,20 @@ const registeredTools: Record<string, RegisteredTool> = {
         .sort((a, b) => b.score - a.score || b.file.messageCreatedAt - a.file.messageCreatedAt)
         .slice(0, MAX_RESULTS)
         .map((item) => ({
+          sourceType: "uploadedFile",
           fileName: item.file.fileName,
-          content: truncate(item.file.content),
+          contentSnippet: truncate(item.file.content),
           messageCreatedAt: item.file.messageCreatedAt,
         }));
 
       return {
         ok: true,
-        message: results.length > 0 ? "uploaded file snippets found" : "no matching uploaded files",
+        message:
+          results.length === 1
+            ? "1 uploaded file snippet found"
+            : results.length > 1
+              ? `${results.length} uploaded file snippets found`
+              : "no matching uploaded files",
         data: results,
       };
     },
