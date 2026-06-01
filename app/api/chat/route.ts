@@ -1,12 +1,11 @@
-import OpenAI from "openai";
 import type {
   ChatCompletionAssistantMessageParam,
   ChatCompletionMessageParam,
 } from "openai/resources/chat";
-import { getRequiredEnv, MissingEnvError } from "@/app/lib/env";
+import { toLlmErrorResponse } from "@/app/lib/llm/errors";
+import { createOpenAIClient, runWithLlmFallback } from "@/app/lib/llm/provider";
 import { executeToolCall, toolDefinitions } from "@/app/lib/tools/registry";
 
-const MODEL = "deepseek-chat";
 const MAX_TOOL_ROUNDS = 2;
 
 interface IncomingMessage {
@@ -30,14 +29,17 @@ function toChatMessages(messages: IncomingMessage[]): ChatCompletionMessageParam
 }
 
 async function createTextStream(
-  client: OpenAI,
   messages: ChatCompletionMessageParam[]
 ): Promise<ReadableStream<Uint8Array>> {
-  const completion = await client.chat.completions.create({
-    model: MODEL,
-    messages,
-    stream: true,
-  });
+  const completion = await runWithLlmFallback(
+    (provider) =>
+      createOpenAIClient(provider).chat.completions.create({
+        model: provider.model,
+        messages,
+        stream: true,
+      }),
+    { operationName: "chat stream" }
+  );
 
   const encoder = new TextEncoder();
 
@@ -54,12 +56,6 @@ async function createTextStream(
 
 export async function POST(req: Request) {
   try {
-    const apiKey = getRequiredEnv("DEEPSEEK_API_KEY");
-    const client = new OpenAI({
-      apiKey,
-      baseURL: "https://api.deepseek.com",
-    });
-
     const { messages, sessionId } = (await req.json()) as {
       messages?: IncomingMessage[];
       sessionId?: string;
@@ -75,19 +71,23 @@ export async function POST(req: Request) {
     }
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const decision = await client.chat.completions.create({
-        model: MODEL,
-        messages: conversation,
-        stream: false,
-        tools: toolDefinitions,
-        tool_choice: "auto",
-      });
+      const decision = await runWithLlmFallback(
+        (provider) =>
+          createOpenAIClient(provider).chat.completions.create({
+            model: provider.model,
+            messages: conversation,
+            stream: false,
+            tools: toolDefinitions,
+            tool_choice: "auto",
+          }),
+        { operationName: "chat tool decision" }
+      );
 
       const assistantMessage = decision.choices?.[0]?.message;
       const toolCalls = assistantMessage?.tool_calls ?? [];
 
       if (toolCalls.length === 0) {
-        const stream = await createTextStream(client, conversation);
+        const stream = await createTextStream(conversation);
         return new Response(stream);
       }
 
@@ -114,18 +114,11 @@ export async function POST(req: Request) {
         "本地工具调用已达到最大轮次。请基于已有工具结果回答；如果信息不足，请明确说明。",
     });
 
-    const stream = await createTextStream(client, conversation);
+    const stream = await createTextStream(conversation);
 
     return new Response(stream);
   } catch (error) {
-    if (error instanceof MissingEnvError) {
-      console.error("Chat API config error:", error.message);
-      return Response.json(
-        { error: `Service unavailable: ${error.key} is not configured` },
-        { status: 503 }
-      );
-    }
     console.error("Chat API error:", error);
-    return Response.json({ error: "Failed to process chat request" }, { status: 500 });
+    return toLlmErrorResponse(error);
   }
 }
