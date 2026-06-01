@@ -1,11 +1,11 @@
 # AI 工作平台
 
-基于 Next.js 16 + React 19 + Vercel AI SDK 构建的本地 AI 对话工作平台，支持多会话管理、文件 RAG、语义搜索、上下文压缩和**开发问题文档系统**。模型默认接入 [DeepSeek](https://platform.deepseek.com/)（OpenAI 兼容接口）。
+基于 Next.js 16 + React 19 + Vercel AI SDK / OpenAI-compatible SDK 构建的本地 AI 对话工作平台，支持多会话管理、文件 RAG、语义搜索、上下文压缩和**开发问题文档系统**。模型默认优先接入本地 [Ollama](https://ollama.com/)（OpenAI-compatible 接口），并可在本地服务不可用时 fallback 到 [DeepSeek](https://platform.deepseek.com/)。
 
 ## 核心功能
 
 ### 1. 智能对话
-- **流式响应**：服务端通过 OpenAI 兼容接口调用 DeepSeek，实时流式输出
+- **流式响应**：服务端通过 OpenAI-compatible 接口优先调用本地 Ollama，失败时可 fallback 到 DeepSeek，实时流式输出
 - **多会话管理**：支持创建、切换、重命名、删除会话，会话置顶
 - **自动标题**：首轮对话结束后用 LLM 自动生成简短会话标题
 - **上下文压缩**：手动压缩长对话历史，保持上下文连贯性
@@ -48,8 +48,8 @@
 ## 技术栈
 
 - **框架**：Next.js 16 (App Router) + React 19
-- **AI SDK**：Vercel AI SDK + `@ai-sdk/openai`（指向 DeepSeek OpenAI 兼容端点）
-- **对话模型**：`deepseek-chat`（用于对话、标题生成、压缩、文档提取）
+- **AI 调用**：OpenAI-compatible SDK（Ollama 本地优先，DeepSeek fallback）
+- **对话模型**：默认 `qwen2.5-coder:7b`（Ollama）；fallback 为 `deepseek-chat`
 - **嵌入模型**：`Xenova/all-MiniLM-L6-v2`（浏览器端 `@huggingface/transformers` 运行）
 - **UI 组件**：React Markdown + React Syntax Highlighter
 - **虚拟化**：react-virtuoso
@@ -85,7 +85,8 @@ app/
 │   ├── dao.ts                  # 数据访问层（DAO）
 │   ├── storage.ts              # 客户端存储适配器
 │   ├── migrate.ts              # localStorage → SQLite 迁移
-│   ├── env.ts                  # 环境变量校验
+│   ├── env.ts                  # 环境变量工具
+│   ├── llm/                    # Ollama 本地优先 + DeepSeek fallback provider
 │   ├── taskQueue.ts            # FIFO 任务队列
 │   ├── fileChunkRag.ts         # 文件 RAG 实现
 │   └── conversationRag.ts      # 对话历史 RAG
@@ -105,7 +106,30 @@ app/
 npm install
 ```
 
-### 2. 配置环境变量
+### 2. 准备本地模型（Ollama）
+
+安装 Ollama 后拉取默认模型：
+
+```bash
+ollama pull qwen2.5-coder:7b
+```
+
+启动 Ollama 服务：
+
+```bash
+ollama serve
+```
+
+验证服务是否可用：
+
+```bash
+curl http://localhost:11434/api/tags
+curl http://localhost:11434/v1/models
+```
+
+> `http://localhost:11434/v1` 是 OpenAI-compatible API base URL，不是浏览器页面；直接在浏览器打开可能不是可读页面。
+
+### 3. 配置 DeepSeek fallback（可选）
 
 创建 `.env.local` 文件：
 
@@ -113,9 +137,18 @@ npm install
 DEEPSEEK_API_KEY=your_deepseek_api_key
 ```
 
-> API 端点固定为 `https://api.deepseek.com`。若关键环境变量缺失，相关 API 路由会返回 503，并在启动时打印警告。
+可选配置：
 
-### 3. 启动开发服务器
+```bash
+OLLAMA_BASE_URL=http://localhost:11434/v1
+OLLAMA_MODEL=qwen2.5-coder:7b
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-chat
+```
+
+> 未配置 `DEEPSEEK_API_KEY` 时，Ollama 正常可用；只有 Ollama 不可用且需要 fallback 时，相关 API 才会返回 503。
+
+### 4. 启动开发服务器
 
 ```bash
 npm run dev
@@ -123,7 +156,7 @@ npm run dev
 
 打开 [http://localhost:3000](http://localhost:3000) 查看应用。
 
-### 4. 构建生产版本
+### 5. 构建生产版本
 
 ```bash
 npm run build
@@ -138,6 +171,7 @@ npm start
 | `npm run build` | 构建生产版本 |
 | `npm start` | 启动生产服务器 |
 | `npm run lint` | 运行 ESLint |
+| `npm test` | 运行单元测试 |
 
 ## 使用指南
 
@@ -190,7 +224,7 @@ npm start
 
 1. **对话解决问题**：通过 AI 对话解决开发问题
 2. **保存触发**：点击"保存为文档"按钮
-3. **AI 提取**：调用 `deepseek-chat` 自动提取结构化信息
+3. **AI 提取**：调用当前配置的对话模型自动提取结构化信息
    - 标题：问题的简短概括（15 字以内）
    - 分类：技术栈分类（React / Next.js / TypeScript / JavaScript / CSS / 性能优化 / Bug修复 / 工具配置 / 其他）
    - 标签：3-5 个关键词
@@ -205,7 +239,7 @@ npm start
 
 当对话历史过长时，可手动触发压缩：
 - 保留最近 3 轮对话（6 条消息）
-- 将更早的消息通过 `deepseek-chat` 总结成摘要（如已有旧摘要会合并去重）
+- 将更早的消息通过当前配置的对话模型总结成摘要（如已有旧摘要会合并去重）
 - 摘要作为 system 消息保留在上下文中
 - 正常请求最多携带最近 15 轮对话（30 条消息）作为上下文
 
@@ -229,7 +263,7 @@ npm start
 
 ### 4. 工程实践
 - **数据库设计**：规范化的 schema 设计，支持外键约束
-- **API 设计**：RESTful API + 统一的错误处理（缺失环境变量返回 503）
+- **API 设计**：RESTful API + 统一的错误处理（本地模型不可用且 fallback 未配置时返回 503）
 - **组件化**：高度模块化的 React 组件
 - **类型安全**：完整的 TypeScript 类型定义
 
