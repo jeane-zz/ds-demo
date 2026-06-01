@@ -4,7 +4,11 @@ import type {
 } from "openai/resources/chat";
 import { toLlmErrorResponse } from "@/app/lib/llm/errors";
 import { createOpenAIClient, runWithLlmFallback } from "@/app/lib/llm/provider";
-import { executeToolCall, toolDefinitions } from "@/app/lib/tools/registry";
+import {
+  executeToolCall,
+  toolDefinitions,
+  toolUseInstruction,
+} from "@/app/lib/tools/registry";
 
 const MAX_TOOL_ROUNDS = 2;
 
@@ -71,11 +75,16 @@ export async function POST(req: Request) {
     }
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      const decisionMessages: ChatCompletionMessageParam[] = [
+        ...conversation,
+        { role: "system", content: toolUseInstruction },
+      ];
+
       const decision = await runWithLlmFallback(
         (provider) =>
           createOpenAIClient(provider).chat.completions.create({
             model: provider.model,
-            messages: conversation,
+            messages: decisionMessages,
             stream: false,
             tools: toolDefinitions,
             tool_choice: "auto",
