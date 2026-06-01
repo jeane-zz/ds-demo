@@ -1,5 +1,5 @@
-import OpenAI from "openai";
-import { getRequiredEnv, MissingEnvError } from "@/app/lib/env";
+import { toLlmErrorResponse } from "@/app/lib/llm/errors";
+import { createOpenAIClient, runWithLlmFallback } from "@/app/lib/llm/provider";
 
 const SYSTEM_PROMPT =
   "你是一个对话摘要助手。请将下面的对话历史压缩成结构化摘要，要求：\n" +
@@ -15,12 +15,6 @@ interface CompressMessage {
 
 export async function POST(req: Request) {
   try {
-    const apiKey = getRequiredEnv("DEEPSEEK_API_KEY");
-    const client = new OpenAI({
-      apiKey,
-      baseURL: "https://api.deepseek.com",
-    });
-
     const { messages, previousSummary } = (await req.json()) as {
       messages: CompressMessage[];
       previousSummary?: string;
@@ -40,14 +34,18 @@ export async function POST(req: Request) {
         ? `先前摘要：\n${previousSummary}\n\n新增对话：\n`
         : `对话历史：\n`) + transcript;
 
-    const completion = await client.chat.completions.create({
-      model: "deepseek-chat",
-      stream: false,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userContent },
-      ],
-    });
+    const completion = await runWithLlmFallback(
+      (provider) =>
+        createOpenAIClient(provider).chat.completions.create({
+          model: provider.model,
+          stream: false,
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: userContent },
+          ],
+        }),
+      { operationName: "conversation compression" }
+    );
 
     const summary = (completion.choices?.[0]?.message?.content ?? "").trim();
     if (!summary) {
@@ -56,14 +54,7 @@ export async function POST(req: Request) {
 
     return Response.json({ summary });
   } catch (error) {
-    if (error instanceof MissingEnvError) {
-      console.error("Compress API config error:", error.message);
-      return Response.json(
-        { error: `Service unavailable: ${error.key} is not configured` },
-        { status: 503 }
-      );
-    }
     console.error("Compress API error:", error);
-    return Response.json({ error: "Failed to compress conversation" }, { status: 500 });
+    return toLlmErrorResponse(error);
   }
 }
