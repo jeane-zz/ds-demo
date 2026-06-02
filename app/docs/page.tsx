@@ -8,7 +8,7 @@ import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import { SaveDocumentModal } from '../components/SaveDocumentModal';
 import styles from './docs.module.css';
 
-interface Document {
+interface SavedDocument {
   id: string;
   title: string;
   category?: string;
@@ -20,6 +20,22 @@ interface Document {
   createdAt: number;
   updatedAt: number;
 }
+
+interface DesignDoc {
+  id: string;
+  title: string;
+  category: string;
+  tags: string[];
+  filename: string;
+  order: number;
+  content?: string;
+}
+
+type Document = SavedDocument & {
+  source: 'saved' | 'design';
+  designId?: string;
+  content?: string;
+};
 
 export default function DocsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -33,11 +49,37 @@ export default function DocsPage() {
 
   const loadDocuments = useCallback(async () => {
     try {
-      const res = await fetch('/api/documents');
-      if (!res.ok) throw new Error('Failed to load documents');
-      const data = await res.json();
+      const [documentsRes, designDocsRes] = await Promise.all([
+        fetch('/api/documents'),
+        fetch('/api/design-docs'),
+      ]);
+
+      if (!documentsRes.ok) throw new Error('Failed to load documents');
+      if (!designDocsRes.ok) throw new Error('Failed to load design documents');
+
+      const savedDocs = (await documentsRes.json()) as SavedDocument[];
+      const designDocs = (await designDocsRes.json()) as DesignDoc[];
+      const data: Document[] = [
+        ...designDocs
+          .sort((a, b) => a.order - b.order)
+          .map((doc) => ({
+            id: `design-${doc.id}`,
+            designId: doc.id,
+            title: doc.title,
+            category: doc.category,
+            tags: doc.tags,
+            problem: undefined,
+            solution: undefined,
+            code: undefined,
+            relatedSessionId: undefined,
+            createdAt: 0,
+            updatedAt: 0,
+            source: 'design' as const,
+          })),
+        ...savedDocs.map((doc) => ({ ...doc, source: 'saved' as const })),
+      ];
       setDocuments(data);
-      return data as Document[];
+      return data;
     } catch (error) {
       console.error('Failed to load documents:', error);
       return null;
@@ -71,6 +113,27 @@ export default function DocsPage() {
     } catch (error) {
       console.error('Failed to delete document:', error);
       alert('删除失败');
+    }
+  };
+
+  const selectDocument = async (doc: Document) => {
+    if (doc.source !== 'design' || doc.content || !doc.designId) {
+      setSelectedDoc(doc);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/design-docs?id=${encodeURIComponent(doc.designId)}`);
+      if (!res.ok) throw new Error('Failed to load design document');
+      const data = (await res.json()) as DesignDoc;
+      const loadedDoc = { ...doc, content: data.content };
+      setDocuments((prev) =>
+        prev.map((item) => (item.id === loadedDoc.id ? loadedDoc : item))
+      );
+      setSelectedDoc(loadedDoc);
+    } catch (error) {
+      console.error('Failed to load design document:', error);
+      setSelectedDoc(doc);
     }
   };
 
@@ -176,7 +239,7 @@ export default function DocsPage() {
                   {docs.map((doc) => (
                     <li
                       key={doc.id}
-                      onClick={() => setSelectedDoc(doc)}
+                      onClick={() => void selectDocument(doc)}
                       className={selectedDoc?.id === doc.id ? styles.active : ''}
                     >
                       <div className={styles.docTitle}>{doc.title}</div>
@@ -203,20 +266,22 @@ export default function DocsPage() {
           <article className={styles.document}>
             <div className={styles.docHeader}>
               <h1>{selectedDoc.title}</h1>
-              <div className={styles.docActions}>
-                <button
-                  className={styles.editBtn}
-                  onClick={() => setEditingDoc(selectedDoc)}
-                >
-                  ✏️ 编辑
-                </button>
-                <button
-                  className={styles.deleteBtn}
-                  onClick={() => deleteDocument(selectedDoc.id)}
-                >
-                  🗑️ 删除
-                </button>
-              </div>
+              {selectedDoc.source === 'saved' && (
+                <div className={styles.docActions}>
+                  <button
+                    className={styles.editBtn}
+                    onClick={() => setEditingDoc(selectedDoc)}
+                  >
+                    ✏️ 编辑
+                  </button>
+                  <button
+                    className={styles.deleteBtn}
+                    onClick={() => deleteDocument(selectedDoc.id)}
+                  >
+                    🗑️ 删除
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className={styles.meta}>
@@ -228,10 +293,20 @@ export default function DocsPage() {
                   #{tag}
                 </span>
               ))}
-              <span className={styles.date}>
-                {new Date(selectedDoc.createdAt).toLocaleDateString('zh-CN')}
-              </span>
+              {selectedDoc.source === 'saved' && (
+                <span className={styles.date}>
+                  {new Date(selectedDoc.createdAt).toLocaleDateString('zh-CN')}
+                </span>
+              )}
             </div>
+
+            {selectedDoc.content && (
+              <section className={styles.section}>
+                <div className={styles.content}>
+                  <ReactMarkdown>{selectedDoc.content}</ReactMarkdown>
+                </div>
+              </section>
+            )}
 
             {selectedDoc.problem && (
               <section className={styles.section}>
