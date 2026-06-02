@@ -1,6 +1,21 @@
 # AI-Code-Explainer 项目设计文档
 
-> 版本：v1.0 · 最后更新：2026-05-29
+> 版本：v1.1 · 最后更新：2026-06-01
+
+---
+
+## 0. 📚 详细技术方案索引
+
+> 本项目包含一套按主题分开的**详细设计文档**，位于 `app/docs/` 目录下，覆盖 6 个核心技术主题：
+>
+> | # | 文档 | 主题 |
+> |---|------|------|
+> | 01 | [`01-llm-provider-architecture.md`](./01-llm-provider-architecture.md) | LLM Provider 架构 — 双层 Provider、优雅降级、统一错误体系 |
+> | 02 | [`02-dual-rag-strategy.md`](./02-dual-rag-strategy.md) | 双层 RAG 策略 — 对话 RAG + 文件 RAG、MiniLM 嵌入、IndexedDB 缓存 |
+> | 03 | [`03-tool-calling-system.md`](./03-tool-calling-system.md) | 本地工具调用系统 — Function Calling 注册-执行、多轮决策、指令注入 |
+> | 04 | [`04-sqlite-storage-and-migration.md`](./04-sqlite-storage-and-migration.md) | SQLite 存储与数据迁移 — 三层存储、FTS5 全文检索、渐进式迁移 |
+> | 05 | [`05-state-management-and-performance.md`](./05-state-management-and-performance.md) | 前端状态管理与性能优化 — TaskQueue、rAF 节流、虚拟化、memo |
+> | 06 | [`06-knowledge-document-system.md`](./06-knowledge-document-system.md) | 知识文档系统 — AI 自动提取、分类管理、文档-对话双向关联 |
 
 ---
 
@@ -171,6 +186,8 @@ app/
 
 ## 4. 存储设计
 
+> **详细方案 → [`04-sqlite-storage-and-migration.md`](./04-sqlite-storage-and-migration.md)**：FTS5 全文检索机制、触发器同步、索引策略、三层存储选址、渐进式幂等迁移。
+
 ### 4.1 SQLite 数据库 (`~/.ai-workspace/data.db`)
 
 ```sql
@@ -237,6 +254,8 @@ CREATE TABLE documents (
 
 ## 5. LLM Provider 架构
 
+> **详细方案 → [`01-llm-provider-architecture.md`](./01-llm-provider-architecture.md)**：三层错误体系（MissingFallbackProviderError / ProviderCallError）、各 API 的复用情况、边界场景处理。
+
 ### 5.1 配置
 
 ```
@@ -262,6 +281,8 @@ runWithLlmFallback(operation, { operationName })
 **例外**：`/api/documents/extract` 使用 `@ai-sdk/openai` v3 直接调用 DeepSeek，未走 fallback 机制。
 
 ### 5.3 Function Calling 工具
+
+> **详细方案 → [`03-tool-calling-system.md`](./03-tool-calling-system.md)**：多轮调用控制、指令注入、参数校验、结果格式化、关键词评分搜索算法。
 
 | 工具名 | 用途 | 作用域 |
 |--------|------|--------|
@@ -301,6 +322,8 @@ runWithLlmFallback(operation, { operationName })
 在 DeepSeek-chat 64K 上下文中，警告线 50K，危险线 60K。
 
 ### 6.4 RAG 策略
+
+> **详细方案 → [`02-dual-rag-strategy.md`](./02-dual-rag-strategy.md)**：触发条件、相似度阈值、缓存一致性、降级策略、分块策略完整说明。
 
 **对话 RAG**：在发送消息前，用 MiniLM 对全量历史做语义检索，找到与当前问题最相关的 3 条历史消息拼入 system prompt。
 
@@ -354,6 +377,8 @@ runWithLlmFallback(operation, { operationName })
 ```
 
 ### 状态管理模式
+
+> **详细方案 → [`05-state-management-and-performance.md`](./05-state-management-and-performance.md)**：TaskQueue 实现、rAF 节流逻辑、虚拟化阈值、memo 比较函数等完整内容。
 
 前端状态采用 **React useState + useCallback + refs** 的方式管理，未使用外部状态库：
 
