@@ -1,0 +1,85 @@
+name: Local Assistant
+version: 1.0.0
+schema: v1
+
+# Superpowers 核心技能（/brainstorm /tdd 等）
+prompts:
+  - name: brainstorm
+    description: 头脑风暴+需求澄清（Superpowers）
+    invokable: true
+    prompt: |
+      {{{input}}}
+
+      请先做头脑风暴：
+      1. 澄清需求、目标、用户场景
+      2. 列出边界条件、依赖、风险
+      3. 输出结构化方案要点
+      4. 不直接写代码，先确认需求
+
+  - name: writing-plans
+    description: 写详细技术方案（Superpowers）
+    invokable: true
+    prompt: |
+      {{{input}}}
+
+      输出完整技术方案：
+      - 功能目标
+      - 模块划分
+      - 接口设计
+      - 数据结构
+      - 依赖关系
+      - 风险与应对
+      - 开发步骤
+
+  - name: executing-plans
+    description: 按方案执行开发（Superpowers）
+    invokable: true
+    prompt: |
+      {{{input}}}
+
+      严格按方案分步实现：
+      1. 只做当前阶段任务
+      2. 输出可运行代码
+      3. 关键处加注释
+      4. 每步完成后简要说明
+
+  - name: tdd
+    description: 测试驱动开发（Superpowers）
+    invokable: true
+    prompt: |
+      {{{input}}}
+
+      严格 TDD 流程：
+      1. 先写失败的单元测试
+      2. 再写最小实现代码
+      3. 重构优化
+      4. 循环直到完成
+      5. 输出测试+实现代码
+
+  - name: systematic-debugging
+    description: 系统性排错（Superpowers）
+    invokable: true
+    prompt: |
+      {{{input}}}
+
+      按系统性排错流程：
+      1. 复现问题
+      2. 收集日志/报错
+      3. 二分定位
+      4. 分析根因
+      5. 给出修复方案
+      6. 验证修复
+
+  - name: verify
+    description: 代码审查+验证（Superpowers）
+    invokable: true
+    prompt: |
+      {{{input}}}
+
+      做全面代码审查：
+      - 功能正确性
+      - 边界条件处理
+      - 安全漏洞
+      - 性能问题
+      - 可读性与规范
+      - 列出问题并给出修复建议
