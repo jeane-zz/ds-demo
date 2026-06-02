@@ -136,8 +136,11 @@
 }
 
 .category li {
-  padding: 0.75rem;
-  margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.125rem;
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.2s;
@@ -153,10 +156,14 @@
 }
 
 .docTitle {
+  flex: 1;
+  min-width: 0;
   font-size: 0.875rem;
   font-weight: 500;
-  margin-bottom: 0.25rem;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .category li.active .docTitle {
@@ -167,7 +174,7 @@
 .docTags {
   display: flex;
   gap: 0.25rem;
-  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .tag {
