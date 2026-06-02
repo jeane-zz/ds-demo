@@ -86,14 +86,6 @@ export default function DocsPage() {
     }
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      await loadDocuments();
-      setLoading(false);
-    })();
-  }, [loadDocuments]);
-
   const deleteDocument = async (id: string) => {
     if (!confirm('确定要删除这个文档吗？')) return;
 
@@ -136,6 +128,15 @@ export default function DocsPage() {
       setSelectedDoc(doc);
     }
   };
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const data = await loadDocuments();
+      setLoading(false);
+      if (data && data.length > 0) void selectDocument(data[0]);
+    })();
+  }, [loadDocuments]);
 
   const handleEdited = async () => {
     const editedId = editingDoc?.id;
